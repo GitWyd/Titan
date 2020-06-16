@@ -1060,9 +1060,17 @@ __global__ void computeSpringForces(CUDA_SPRING ** d_spring, int num_springs, do
         } else if (spring._type == ACTIVE_EXPAND_THEN_CONTRACT){
             scale = (1 + 0.2 * sin(spring._omega * t));
 	    }
+        Vec force;
+        if (spring._type == MAGNETIC_ATTRACTION){
+            force = spring._max_force / (1 - temp.norm()) * (temp / temp.norm()); // magnet force in the direction of n
+            force += dot(spring._left->vel - spring._right->vel, temp / temp.norm()) * spring._damping *
+                     (temp / temp.norm()); // damping
 
-        Vec force = spring._k * (spring._rest * scale - temp.norm()) * (temp / temp.norm()); // normal spring force
-        force += dot(spring._left -> vel - spring._right -> vel, temp / temp.norm()) * spring._damping * (temp / temp.norm()); // damping
+        } else {
+            force = spring._k * (spring._rest * scale - temp.norm()) * (temp / temp.norm()); // normal spring force
+            force += dot(spring._left->vel - spring._right->vel, temp / temp.norm()) * spring._damping *
+                     (temp / temp.norm()); // damping
+        }
 
 #ifdef CONSTRAINTS
         if (spring._right -> constraints.fixed == false) {
@@ -1758,7 +1766,7 @@ __global__ void updateColors(float * gl_ptr, CUDA_MASS ** d_mass, int num_masses
         gl_ptr[3 * i + 2] = (float) d_mass[i] -> color[2];
     }
 }
-
+// allocate space for vertices of points in openGL
 void Simulation::updateBuffers() {
     if (update_colors) {
         glBindBuffer(GL_ARRAY_BUFFER, colors);

@@ -33,8 +33,8 @@ public:
     Spring(Mass * left, Mass * right, double k, double rest_length, SpringType type, double omega) :
             _left(left), _right(right), _k(k), _rest(rest_length), _type(type), _omega(omega), _damping(0.0) {};
     // Magnetic Attraction modeled as Spring
-    Spring(Mass * left, Mass * right, double lambda, SpringType type) :
-            _left(left), _right(right), _k(lambda), _rest(0.0), _type(type), _omega(0.0), _damping(0.0) {};
+    Spring(Mass * left, Mass * right, double max_force, SpringType type) :
+            _left(left), _right(right), _k(0.0), _rest(0.0), _type(type), _omega(0.0), _damping(0.0), _max_force(max_force) {};
 
     void update(const CUDA_SPRING & spr);
     void setRestLength(double rest_length) { _rest = rest_length; } //sets Rest length
@@ -56,7 +56,8 @@ public:
     SpringType _type; // 0-3, for oscillating springs
     double _omega; // frequency of oscillation
     double _damping; // damping on the masses.
-    
+    double _max_force; // maximum force for magnets
+
 private:
     CUDA_SPRING *arrayptr; //Pointer to struct version for GPU cudaMalloc
 
@@ -84,6 +85,8 @@ struct CUDA_SPRING {
   SpringType _type;
   double _omega;
   double _damping;
+  // Magnet
+  double _max_force;
 };
 
 } // namespace titan
