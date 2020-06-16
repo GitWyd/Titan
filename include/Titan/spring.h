@@ -13,8 +13,8 @@ namespace titan {
 class Mass;
 struct CUDA_SPRING;
 struct CUDA_MASS;
-
-enum SpringType {PASSIVE_SOFT, PASSIVE_STIFF, ACTIVE_CONTRACT_THEN_EXPAND, ACTIVE_EXPAND_THEN_CONTRACT};
+// ToDo: Remove PASSIVE_STIFF has no effect at all, remove
+enum SpringType {PASSIVE_SOFT, PASSIVE_STIFF, ACTIVE_CONTRACT_THEN_EXPAND, ACTIVE_EXPAND_THEN_CONTRACT, MAGNETIC_ATTRACTION};
 
 class Spring {
 public:
@@ -32,7 +32,10 @@ public:
 
     Spring(Mass * left, Mass * right, double k, double rest_length, SpringType type, double omega) :
             _left(left), _right(right), _k(k), _rest(rest_length), _type(type), _omega(omega), _damping(0.0) {};
-	    
+    // Magnetic Attraction modeled as Spring
+    Spring(Mass * left, Mass * right, double lambda, SpringType type) :
+            _left(left), _right(right), _k(lambda), _rest(0.0), _type(type), _omega(0.0), _damping(0.0) {};
+
     void update(const CUDA_SPRING & spr);
     void setRestLength(double rest_length) { _rest = rest_length; } //sets Rest length
     void defaultLength(); //sets rest length
