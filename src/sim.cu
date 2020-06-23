@@ -338,6 +338,13 @@ Spring * Simulation::createSpring(Mass * m1, Mass * m2) {
     Spring * s = new Spring(m1, m2);
     return createSpring(s);
 }
+Spring * Simulation::createMagnet(Mass * m1, Mass * m2, double maximum_force) {
+    if (ENDED) {
+        throw std::runtime_error("The simulation has ended. Cannot modify simulation after the end of the simulation.");
+    }
+    Spring * s = new Spring(m1, m2, maximum_force, MAGNETIC_ATTRACTION);
+    return createSpring(s);
+}
 
 __global__ void invalidate(CUDA_MASS ** ptrs, CUDA_MASS * m, int size) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -1062,7 +1069,7 @@ __global__ void computeSpringForces(CUDA_SPRING ** d_spring, int num_springs, do
 	    }
         Vec force;
         if (spring._type == MAGNETIC_ATTRACTION){
-            force = spring._max_force / (1 - temp.norm()) * (temp / temp.norm()); // magnet force in the direction of n
+            force = -spring._max_force / (1 + temp.norm()) * (temp / temp.norm()); // negative magnet force in the direction of n
             force += dot(spring._left->vel - spring._right->vel, temp / temp.norm()) * spring._damping *
                      (temp / temp.norm()); // damping
 

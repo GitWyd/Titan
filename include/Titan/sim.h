@@ -42,6 +42,7 @@ public:
 
     Spring * createSpring();
     Spring * createSpring(Mass * m1, Mass * m2);
+    Spring * createMagnet(Mass * m1, Mass * m2, double maximum_force); // creates magnet spring type
 
     // Delete
     void deleteMass(Mass * m);
@@ -93,9 +94,9 @@ public:
 
     void pause(double t); // pause at time t, block CPU until t.
     void resume();
-
     void reset(); // reset the simulation
-    
+    // ToDo: Implement segmentMasses into grid
+    void segmentMasses(Vec & env_dim, int x_segments = 5, int y_segments = 5, int z_segments = 5); // segments space into sub sections
     void setBreakpoint(double time); // tell the program to stop at a fixed time (doesn't hang).
 
     void wait(double t); // wait fixed time without stopping simulation

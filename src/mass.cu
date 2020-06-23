@@ -39,7 +39,7 @@ void Mass::operator=(CUDA_MASS & mass) {
 #endif
 }
 
-Mass::Mass(const Vec & position, double mass, bool fixed) {
+Mass::Mass(const Vec & position, double mass, double ferromagnetic_scalefactor, double max_mag_force,bool fixed) {
     m = mass;
     pos = position;
     
@@ -49,6 +49,9 @@ Mass::Mass(const Vec & position, double mass, bool fixed) {
     arrayptr = nullptr;
     ref_count = 0;
 
+    magnetic_scale_factor = ferromagnetic_scalefactor;
+    magnetic_force = max_mag_force;
+
 #ifdef GRAPHICS
     color = Vec(1.0, 0.2, 0.2);
 #endif
@@ -57,7 +60,9 @@ Mass::Mass(const Vec & position, double mass, bool fixed) {
 CUDA_MASS::CUDA_MASS(Mass &mass) {
     m = mass.m;
     T = mass.T;
-    
+    magnetic_scale_factor = mass.magnetic_scale_factor;
+    magnetic_force = mass.magnetic_force;
+
     pos = mass.pos;
     vel = mass.vel;
     extern_force = mass.extern_force;
