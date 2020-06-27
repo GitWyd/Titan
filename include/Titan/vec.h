@@ -158,7 +158,7 @@ public:
         return *this / norm();
     }
 
-    CUDA_CALLABLE_MEMBER std::vector<int> & toIntVector() const {
+    CUDA_CALLABLE_MEMBER std::vector<int> toIntVector() const {
         std::vector<int> v =    {
                                     int(this->data[0]),
                                     int(this->data[1]),

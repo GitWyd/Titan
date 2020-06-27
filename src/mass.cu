@@ -39,7 +39,7 @@ void Mass::operator=(CUDA_MASS & mass) {
 #endif
 }
 
-Mass::Mass(const Vec & position, double mass, double ferromagnetic_scalefactor, double max_mag_force,bool fixed) {
+Mass::Mass(const Vec & position, double mass, bool fixed, double ferromagnetic_scalefactor, double max_mag_force) {
     m = mass;
     pos = position;
     

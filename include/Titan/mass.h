@@ -15,8 +15,9 @@ struct CUDA_MASS;
 
 class Mass {
 public:
-    Mass(const Vec & position, double mass = 0.1, bool fixed = false);
-    Mass(const Vec & position, double mass = 0.1, double ferromagnetic_scalefactor = 0, double max_mag_force = 0,bool fixed = false);
+    // OLD CONSTRUCTION BEFORE MAGNET CAPABILITIES
+    // Mass(const Vec & position, double mass = 0.1, bool fixed = false);
+    Mass(const Vec & position, double mass = 0.1,bool fixed = false, double ferromagnetic_scalefactor = 0, double max_mag_force = 0);
 
     //Properties
     double m; // mass in kg
@@ -27,6 +28,7 @@ public:
     //Magnetic Properties
     double magnetic_scale_factor; // scales the effect of a magnetic field on the mass
     double magnetic_force; // maximum magnetic force excerted in [N]
+
 
     void setExternalForce(const Vec & v) { extern_force = v; }
     Vec acceleration() { return acc; }

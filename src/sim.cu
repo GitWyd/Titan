@@ -2119,23 +2119,23 @@ namespace titan {
         int key;
         this->nr_segments = nr_segments;
         for (Mass * m : masses) {
-            key = this->getIntKey(m, nr_segments);
+            key = this->getIntKey(m);
             this->segmented_masses[key].insert(m);
         }
     }
     // ToDo: implement getNeighbouringMasses
-    std::vector<Mass *> & Simulation::getNeighbouringMasses(Mass *m) {
-        int key = this->getIntKey(m, this->nr_segments);
+    /*std::vector<Mass *> & Simulation::getNeighbouringMasses(Mass *m) {
+        int key = this->getIntKey(m);
         std::vector<Mass *> close_by_masses = {m};
         return close_by_masses;
-    }
+    }*/
     int Simulation::getIntKey(Mass * m){
-        this->voxel_dimensions = round(this->env_dim / this->nr_segments);
+        this->voxel_dimensions = this->env_dim / this->nr_segments;
         int nr_digits = max(max( log(this->nr_segments[0]),
                                     log(this->nr_segments[1])),
                                     log(this->nr_segments[2]));
         int value_scaler = pow(10, nr_digits); // set scale factor for integer key combination
-        Vec idx = round(m->pos/voxel_dimensions);
+        std::vector<int> idx = (m->pos/voxel_dimensions).toIntVector();
         return idx[0] + idx[1]*value_scaler + idx[2]*pow(value_scaler,2);
     }
     void Simulation::setEnvDim(int wall_offset) {
