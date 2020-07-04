@@ -15,13 +15,19 @@ struct CUDA_MASS;
 
 class Mass {
 public:
-    Mass(const Vec & position, double mass = 0.1, bool fixed = false);
+    Mass(const Vec & position, double mass = 0.1, bool fixed = false, double radius = 0.0,
+         double maximum_magnet_force = 0.0, double magnet_scale_factor = 0.0);
 
     //Properties
     double m; // mass in kg
     double T; // local time
     Vec pos; // position in m
     Vec vel; // velocity in m/s
+
+    // Magnet Mass related properties
+    double rad; // magnet_sphere radius
+    double max_mag_force; // maximum pull force excerted by the magnet
+    double mag_scale_factor; // scales susceptibility to magnetic flux
 
     void setExternalForce(const Vec & v) { extern_force = v; }
     Vec acceleration() { return acc; }
@@ -81,6 +87,12 @@ struct CUDA_MASS {
 
     double m; // mass in kg
     double T; // local time
+
+    // Magnet Mass related properties
+    double rad; // magnet_sphere radius
+    double max_mag_force; // maximum pull force excerted by the magnet
+    double mag_scale_factor; // scales susceptibility to magnetic flux
+
     Vec pos; // position in m
     Vec vel; // velocity in m/s
     Vec acc; // acceleration in m/s^2
