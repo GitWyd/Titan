@@ -15,20 +15,13 @@ struct CUDA_MASS;
 
 class Mass {
 public:
-    // OLD CONSTRUCTION BEFORE MAGNET CAPABILITIES
-    // Mass(const Vec & position, double mass = 0.1, bool fixed = false);
-    Mass(const Vec & position, double mass = 0.1,bool fixed = false, double ferromagnetic_scalefactor = 0, double max_mag_force = 0);
+    Mass(const Vec & position, double mass = 0.1, bool fixed = false);
 
     //Properties
     double m; // mass in kg
     double T; // local time
     Vec pos; // position in m
     Vec vel; // velocity in m/s
-
-    //Magnetic Properties
-    double magnetic_scale_factor; // scales the effect of a magnetic field on the mass
-    double magnetic_force; // maximum magnetic force excerted in [N]
-
 
     void setExternalForce(const Vec & v) { extern_force = v; }
     Vec acceleration() { return acc; }
@@ -47,7 +40,7 @@ public:
     Vec color;
 #endif
 
-protected:
+private:
     Vec acc; // acceleration in m/s^2
     Vec extern_force; // force in kg m / s^2
 
@@ -81,16 +74,13 @@ protected:
 #endif
 
 };
-//Struct with CPU Mass properties used for optimal memory allocation on GPU memory
+//Struct with CPU Spring properties used for optimal memory allocation on GPU memory
 struct CUDA_MASS {
     CUDA_MASS() = default;
     CUDA_MASS(Mass & mass);
 
     double m; // mass in kg
     double T; // local time
-    //Magnetic Properties
-    double magnetic_scale_factor; // scales the effect of a magnetic field on the mass
-    double magnetic_force; // maximum magnetic force excerted in [N]
     Vec pos; // position in m
     Vec vel; // velocity in m/s
     Vec acc; // acceleration in m/s^2

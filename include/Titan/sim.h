@@ -20,8 +20,6 @@
 #include <vector>
 #include <set>
 #include <thread>
-#include <unordered_map>
-#include <unordered_set>
 
 #include "spring.h"
 #include "mass.h"
@@ -96,7 +94,9 @@ public:
 
     void pause(double t); // pause at time t, block CPU until t.
     void resume();
+
     void reset(); // reset the simulation
+    
     void setBreakpoint(double time); // tell the program to stop at a fixed time (doesn't hang).
 
     void wait(double t); // wait fixed time without stopping simulation
@@ -108,15 +108,6 @@ public:
 
     void printPositions();
 
-    // ToDo: Implement segmentMasses into grid
-    std::unordered_map<int, std::unordered_set<Mass *>> segmented_masses; // mass segments hashed into map, with
-    Vec voxel_dimensions; // dimensions of space segment
-    Vec env_dim; // environment dimensions
-    Vec nr_segments; // nr_segments <x, y, z> the space  is segmented into
-    void setEnvDim(int wall_offset); // limits environment around location (0,0,0) with walls (Z-direction remains unlimited)
-    int getIntKey(Mass * m);
-    void segmentMasses(Vec & nr_segments); // segments space into sub sections
-    std::vector<Mass *>& getNeighbouringMasses(Mass * m); // returns a vector of neighbouring masses based on segmented_masses
     Simulation();
     ~Simulation();
 
