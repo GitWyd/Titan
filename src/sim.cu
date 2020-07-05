@@ -1080,10 +1080,10 @@ __global__ void computeSpringForces(CUDA_SPRING ** d_spring, int num_springs, do
         }
 
 #ifdef CONSTRAINTS
-        if (spring._right -> constraints.fixed == false) {
+        if (!spring._right -> constraints.fixed) {
             spring._right->force.atomicVecAdd(force); // need atomics here
         }
-        if (spring._left -> constraints.fixed == false) {
+        if (!spring._left->constraints.fixed) {
             spring._left->force.atomicVecAdd(-force);
         }
 #else
@@ -1115,11 +1115,30 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
         if (mass.constraints.fixed == 1)
             return;
 #endif
+        // Compute External Magnet Forces
+        Vec temp; // temporary distance vector
+        double temp_norm;
+        double intersection_distance;
+        for (int j = 0; j < num_masses; j++){
+            temp = mass.pos-d_mass[j]->pos;
+            temp_norm = temp.norm();
+            if (i != j){
+                // if the mass bodies don't intersect
+                intersection_distance = temp_norm - (mass.rad + d_mass[j]->rad);
+                if ( intersection_distance < 0){
+                    // if mass bodies intersect
+                    mass.extern_force += abs(intersection_distance)*mass.stiffness * (temp/temp_norm);
+                } else {
+                    // if masses are not intersecting
+                    mass.extern_force -= d_mass[j]->mag_scale_factor*mass.max_mag_force / pow(temp_norm,2) * (temp/temp_norm);
+                }
+            }
+        }
 
         mass.force += mass.m * global_acc;
         mass.force += mass.extern_force;
 
-        // mass.force += mass.external;
+        mass.extern_force = Vec(0,0,0); // reset external force
 
         for (int j = 0; j < c.num_planes; j++) { // global constraints
             c.d_planes[j].applyForce(&mass);
@@ -1147,9 +1166,9 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
         }
         
         // NOTE TODO this is really janky. On certain platforms, the following code causes excessive memory usage on the GPU.
-        if (mass.vel.norm() != 0.0) {
-            double norm = mass.vel.norm();
-            mass.force += - mass.constraints.drag_coefficient * pow(norm, 2) * mass.vel / norm; // drag
+        double vel_norm = mass.vel.norm();
+        if (vel_norm != 0.0) {
+            mass.force += - mass.constraints.drag_coefficient * pow(vel_norm, 2) * mass.vel / vel_norm; // drag
         }
 #endif
 

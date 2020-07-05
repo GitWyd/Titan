@@ -42,12 +42,13 @@ void Mass::operator=(CUDA_MASS & mass) {
 #endif
 }
 
-Mass::Mass(const Vec & position, double mass, bool fixed, double radius,
+Mass::Mass(const Vec & position, double mass, bool fixed, double radius, double stiffness,
            double maximum_magnet_force, double magnet_scale_factor) {
     m = mass;
     pos = position;
 
     rad = radius;
+    stiffness = stiffness;
     max_mag_force = maximum_magnet_force;
     mag_scale_factor = magnet_scale_factor;
     
@@ -71,6 +72,7 @@ CUDA_MASS::CUDA_MASS(Mass &mass) {
     extern_force = mass.extern_force;
 
     rad = mass.rad;
+    stiffness = mass.stiffness; // spring constant of the magnet shell
     max_mag_force = mass.max_mag_force;
     mag_scale_factor = mass.mag_scale_factor;
 

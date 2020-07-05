@@ -284,6 +284,44 @@ public:
     Vec _center, _dims;
 };
 
+/*
+ * Magnet Truss Robot Link
+ */
+class RobotLink : public Container {
+public:
+    RobotLink(const Vec & pos1, const Vec & pos2, double mass, double max_exp_length, double min_exp_length,
+            double expansion_rate, double k, double magnetic_force, double radius = 0.015);
+    ~RobotLink() {}
+
+    Mass * ml; // left mass
+    Mass * mr; // right mass
+    Spring * s; // spring actuator
+
+    double exp_rate = 0.009; // [m/s] 2 * 4.5 mm/s (Actuonix L12I 210:1)
+    double max_length; // expanded link length (magnet center to magnet center)
+    double min_length; // contracted length of link
+    double k_link; // link stiffness
+    double max_mag_force; // magnetic force of connector
+
+    /*
+     * expand()
+     * returns True if link still can expand more, and false otherwise
+     * puts robot link into expansion mode unless it is already at full length
+     */
+    bool expand();
+    /*
+     * contract()
+     * returns True if link still can contract more, and false otherwise
+     * puts robot link into contraction mode unless it is already at full length
+     */
+    bool contract();
+    bool detach();
+    bool attach();
+    void setExpansionRate(double exp_rate);
+    void setRobotMass(double Mass);
+    void setColor(Vec c);
+    void setStiffness(double k);
+};
 
 // typedef std::vector<std::vector<std::vector<std::vector<int>>>> cppn;
 // class Robot : public Container {

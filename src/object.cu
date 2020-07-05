@@ -359,6 +359,58 @@ Beam::Beam(const Vec & center, const Vec & dims, int nx, int ny, int nz) {
     }
 }
 #endif
+/*
+ * Robot Link Class Functions
+ */
+    RobotLink::RobotLink(const Vec &pos1, const Vec &pos2, double mass, double max_exp_length, double min_exp_length,
+                         double expansion_rate, double k, double magnetic_force, double radius) {
+        double max_length = max_exp_length; // expanded link length (magnet center to magnet center)
+        double min_length = min_exp_length; // contracted length of link
+        double k_link = k; // link stiffness
+        double max_mag_force = magnetic_force; // magnetic force of connector
+
+        ml = new Mass(pos1, mass, false, radius, magnetic_force, 1.0);
+        mr = new Mass(pos2, mass, false, radius, magnetic_force, 1.0);
+        s = new Spring(ml, mr);
+        // add masses and springs to respective vectors
+        masses.push_back(ml);
+        masses.push_back(mr);
+        springs.push_back(s);
+    }
+    /*
+     * ToDo: Implement class functions
+     */
+    bool RobotLink::expand() {
+        return false;
+    }
+
+    bool RobotLink::contract() {
+        return false;
+    }
+
+    bool RobotLink::detach() {
+        return false;
+    }
+
+    bool RobotLink::attach() {
+        return false;
+    }
+
+    void RobotLink::setExpansionRate(double exp_rate) {
+
+    }
+
+    void RobotLink::setRobotMass(double Mass) {
+
+    }
+
+    void RobotLink::setColor(Vec c) {
+
+    }
+
+    void RobotLink::setStiffness(double k) {
+
+    }
 
 // Robot::Robot(const Vec & center, const cppn& encoding, double side_length,  double omega, double k_soft, double k_stiff){
 //     _center = center;

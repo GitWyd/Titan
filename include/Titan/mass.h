@@ -15,7 +15,7 @@ struct CUDA_MASS;
 
 class Mass {
 public:
-    Mass(const Vec & position, double mass = 0.1, bool fixed = false, double radius = 0.0,
+    Mass(const Vec & position, double mass = 0.1, bool fixed = false, double radius = 0.0, double stiffness = 30000,
          double maximum_magnet_force = 0.0, double magnet_scale_factor = 0.0);
 
     //Properties
@@ -26,6 +26,7 @@ public:
 
     // Magnet Mass related properties
     double rad; // magnet_sphere radius
+    double stiffness; // spring constant of the magnet shell
     double max_mag_force; // maximum pull force excerted by the magnet
     double mag_scale_factor; // scales susceptibility to magnetic flux
 
@@ -73,6 +74,7 @@ private:
     friend class Lattice;
     friend class Beam;
     friend class Cube;
+    friend class RobotLink;
 
 #ifdef CONSTRAINTS
     LOCAL_CONSTRAINTS constraints;
@@ -90,6 +92,7 @@ struct CUDA_MASS {
 
     // Magnet Mass related properties
     double rad; // magnet_sphere radius
+    double stiffness; // spring constant of the magnet shell
     double max_mag_force; // maximum pull force excerted by the magnet
     double mag_scale_factor; // scales susceptibility to magnetic flux
 
