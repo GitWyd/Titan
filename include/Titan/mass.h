@@ -29,7 +29,7 @@ public:
     double stiffness; // spring constant of the magnet shell
     double max_mag_force; // maximum pull force excerted by the magnet
     double mag_scale_factor; // scales susceptibility to magnetic flux
-
+    bool isMagnetic() {return (bool) round(max_mag_force);}
     void setExternalForce(const Vec & v) { extern_force = v; }
     Vec acceleration() { return acc; }
 

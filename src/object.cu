@@ -369,9 +369,10 @@ Beam::Beam(const Vec & center, const Vec & dims, int nx, int ny, int nz) {
         double k_link = k; // link stiffness
         double max_mag_force = magnetic_force; // magnetic force of connector
 
-        ml = new Mass(pos1, mass, false, radius, magnetic_force, 1.0);
-        mr = new Mass(pos2, mass, false, radius, magnetic_force, 1.0);
-        s = new Spring(ml, mr);
+        ml = new Mass(pos1, mass, false, radius, max_mag_force, 1.0);
+        mr = new Mass(pos2, mass, false, radius, max_mag_force, 1.0);
+        s = new Spring(ml, mr, k_link, min_length, PASSIVE_SOFT, 0.0, max_length,
+                min_length, expansion_rate);
         // add masses and springs to respective vectors
         masses.push_back(ml);
         masses.push_back(mr);
@@ -381,35 +382,68 @@ Beam::Beam(const Vec & center, const Vec & dims, int nx, int ny, int nz) {
      * ToDo: Implement class functions
      */
     bool RobotLink::expand() {
-        return false;
+        if (max_length <= s->_rest){
+            s->_type = PASSIVE_SOFT;
+            return false;
+        } else {
+            s->_type = ACTUATED_EXPAND;
+            this->attach(); // the expanding link is always in attachment mode
+            return true;
+        }
     }
 
     bool RobotLink::contract() {
-        return false;
+        if (min_length >= s->_rest){
+            s->_type = PASSIVE_SOFT;
+            return false;
+        } else {
+            s->_type = ACTUATED_EXPAND;
+            return true;
+        }
     }
 
+    // removes magnet force from masses
     bool RobotLink::detach() {
+        if (!this->contract()){
+            if (ml->isMagnetic()){
+                ml->max_mag_force = 0.0;
+            }
+            if (mr->isMagnetic()){
+                mr->max_mag_force = 0.0;
+            }
+            return true;
+        }
         return false;
     }
-
+    // adds magnet force to masses
     bool RobotLink::attach() {
+        if (!ml->isMagnetic()){
+            ml->max_mag_force = max_mag_force;
+        }
+        if (!mr->isMagnetic()){
+            mr->max_mag_force = max_mag_force;
+        }
         return false;
     }
 
     void RobotLink::setExpansionRate(double exp_rate) {
-
+        this->exp_rate = exp_rate;
+        s->_rate = exp_rate;
     }
 
-    void RobotLink::setRobotMass(double Mass) {
-
+    void RobotLink::setRobotMass(double mass) {
+        ml->m = mass/2;
+        mr->m = mass/2;
     }
 
     void RobotLink::setColor(Vec c) {
-
+        ml->color = c;
+        mr->color = c;
     }
 
     void RobotLink::setStiffness(double k) {
-
+        k_link = k;
+        s->_k = k;
     }
 
 // Robot::Robot(const Vec & center, const cppn& encoding, double side_length,  double omega, double k_soft, double k_stiff){

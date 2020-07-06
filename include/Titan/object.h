@@ -318,7 +318,7 @@ public:
     bool detach();
     bool attach();
     void setExpansionRate(double exp_rate);
-    void setRobotMass(double Mass);
+    void setRobotMass(double mass);
     void setColor(Vec c);
     void setStiffness(double k);
 };
