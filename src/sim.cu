@@ -1996,6 +1996,29 @@ Beam * Simulation::createBeam(const Vec & center, const Vec & dims, int nx, int 
 }
 #endif
 
+RobotLink * Simulation::createRobotLink(const Vec & pos1, const Vec & pos2, double mass, double max_exp_length, double min_exp_length,
+                                        double expansion_rate, double k, double magnetic_force, double radius){
+    if (ENDED) {
+        throw std::runtime_error("The simulation has ended. New objects cannot be created.");
+    }
+    RobotLink * l = new RobotLink(pos1, pos2, mass, max_exp_length, min_exp_length, expansion_rate, k, magnetic_force, radius);
+    d_masses.reserve(masses.size() + l -> masses.size());
+    d_springs.reserve(springs.size() + l -> springs.size());
+
+    for (Mass * m : l -> masses) {
+        createMass(m);
+    }
+
+    for (Spring * s : l -> springs) {
+        createSpring(s);
+    }
+
+    containers.push_back(l);
+
+    return l;
+
+}
+
 // Robot * Simulation::createRobot(const Vec & center, const cppn& encoding, double side_length,  double omega, double k_soft, double k_stiff){
   
 //     if (ENDED) {
