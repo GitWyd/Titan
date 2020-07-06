@@ -40,7 +40,10 @@ CUDA_SPRING::CUDA_SPRING(const Spring & s) {
     _type = s._type;
     _omega = s._omega;
     _damping = s._damping;
-    _max_force = s._max_force;
+    // Actuator
+    _l_max = s._l_max; // maximum actuator length
+    _l_min = s._l_min; // minimum actuator length
+    _rate = s._rate; // expansion rate [m/s]
 }
 
 CUDA_SPRING::CUDA_SPRING(const Spring & s, CUDA_MASS * left, CUDA_MASS * right) {
@@ -51,7 +54,10 @@ CUDA_SPRING::CUDA_SPRING(const Spring & s, CUDA_MASS * left, CUDA_MASS * right) 
     _type = s._type;
     _omega = s._omega;
     _damping = s._damping;
-    _max_force = s._max_force;
+    // Actuator
+    _l_max = s._l_max; // maximum actuator length
+    _l_min = s._l_min; // minimum actuator length
+    _rate = s._rate; // expansion rate [m/s]
 }
 
 } // namespace titan

@@ -30,7 +30,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 __global__ void createSpringPointers(CUDA_SPRING ** ptrs, CUDA_SPRING * data, int size);
 __global__ void createMassPointers(CUDA_MASS ** ptrs, CUDA_MASS * data, int size);
 
-__global__ void computeSpringForces(CUDA_SPRING ** device_springs, int num_springs, double t);
+__global__ void computeSpringForces(CUDA_SPRING ** device_springs, int num_springs, double dt, double t);
 __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double dt, double T, Vec global_acc, CUDA_GLOBAL_CONSTRAINTS c);
 
 bool Simulation::RUNNING;
@@ -336,13 +336,6 @@ Spring * Simulation::createSpring(Mass * m1, Mass * m2) {
     }
 
     Spring * s = new Spring(m1, m2);
-    return createSpring(s);
-}
-Spring * Simulation::createMagnet(Mass * m1, Mass * m2, double maximum_force) {
-    if (ENDED) {
-        throw std::runtime_error("The simulation has ended. Cannot modify simulation after the end of the simulation.");
-    }
-    Spring * s = new Spring(m1, m2, maximum_force, MAGNETIC_ATTRACTION);
     return createSpring(s);
 }
 
@@ -1050,7 +1043,7 @@ __global__ void printSpring(CUDA_SPRING ** d_springs, int num_springs) {
     }
 }
 
-__global__ void computeSpringForces(CUDA_SPRING ** d_spring, int num_springs, double t) {
+__global__ void computeSpringForces(CUDA_SPRING ** d_spring, int num_springs, double dt, double t) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if ( i < num_springs ) {
@@ -1066,18 +1059,19 @@ __global__ void computeSpringForces(CUDA_SPRING ** d_spring, int num_springs, do
             scale = (1 - 0.2 * sin(spring._omega * t));
         } else if (spring._type == ACTIVE_EXPAND_THEN_CONTRACT){
             scale = (1 + 0.2 * sin(spring._omega * t));
-	    }
-        Vec force;
-        if (spring._type == MAGNETIC_ATTRACTION){
-            force = -spring._max_force / (1 + temp.norm()) * (temp / temp.norm()); // negative magnet force in the direction of n
-            force += dot(spring._left->vel - spring._right->vel, temp / temp.norm()) * spring._damping *
-                     (temp / temp.norm()); // damping
-
-        } else {
-            force = spring._k * (spring._rest * scale - temp.norm()) * (temp / temp.norm()); // normal spring force
-            force += dot(spring._left->vel - spring._right->vel, temp / temp.norm()) * spring._damping *
-                     (temp / temp.norm()); // damping
+	    } else if (spring._type == ACTUATED_EXPAND){
+            if (spring._rest < spring._l_max){
+                spring._rest += spring._rate*dt;
+            }
+        } else if (spring._type == ACTUATED_CONTRACT){
+            if (spring._rest > spring._l_min){
+                spring._rest -= spring._rate*dt;
+            }
         }
+        Vec force;
+        force = spring._k * (spring._rest * scale - temp.norm()) * (temp / temp.norm()); // normal spring force
+        force += dot(spring._left->vel - spring._right->vel, temp / temp.norm()) * spring._damping *
+                 (temp / temp.norm()); // damping
 
 #ifdef CONSTRAINTS
         if (!spring._right -> constraints.fixed) {
@@ -1604,19 +1598,19 @@ void Simulation::execute() {
         cudaDeviceSynchronize(); // synchronize before updating the springs and mass positions
                 
 #ifdef RK2
-        computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), T); // compute mass forces after syncing
+        computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), dt, T); // compute mass forces after syncing
         gpuErrchk( cudaPeekAtLastError() );
         massForcesAndUpdate<true><<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints);
         gpuErrchk( cudaPeekAtLastError() );
         T += 0.5 * dt;
 
-        computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), T); // compute mass forces after syncing
+        computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), dt, T); // compute mass forces after syncing
         gpuErrchk( cudaPeekAtLastError() );
         massForcesAndUpdate<false><<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints);
         gpuErrchk( cudaPeekAtLastError() );
         T += 0.5 * dt;
 #else
-        computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), T); // compute mass forces after syncing
+        computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), dt, T); // compute mass forces after syncing
         gpuErrchk( cudaPeekAtLastError() );
 
         massForcesAndUpdate<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints);

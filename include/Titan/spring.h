@@ -14,7 +14,8 @@ class Mass;
 struct CUDA_SPRING;
 struct CUDA_MASS;
 // ToDo: Remove PASSIVE_STIFF has no effect at all, remove
-enum SpringType {PASSIVE_SOFT, PASSIVE_STIFF, ACTIVE_CONTRACT_THEN_EXPAND, ACTIVE_EXPAND_THEN_CONTRACT, MAGNETIC_ATTRACTION};
+enum SpringType {PASSIVE_SOFT, PASSIVE_STIFF, ACTIVE_CONTRACT_THEN_EXPAND, ACTIVE_EXPAND_THEN_CONTRACT,
+        ACTUATED_EXPAND, ACTUATED_CONTRACT};
 
 class Spring {
 public:
@@ -30,11 +31,11 @@ public:
     Spring(Mass * left, Mass * right, double k, double rest_length) : _left(left), _right(right), 
     _k(k), _rest(rest_length), _type(PASSIVE_SOFT), _omega(0.0), _damping(0.0) {}
 
-    Spring(Mass * left, Mass * right, double k, double rest_length, SpringType type, double omega) :
-            _left(left), _right(right), _k(k), _rest(rest_length), _type(type), _omega(omega), _damping(0.0) {};
-    // Magnetic Attraction modeled as Spring
-    Spring(Mass * left, Mass * right, double max_force, SpringType type) :
-            _left(left), _right(right), _k(0.0), _rest(0.0), _type(type), _omega(0.0), _damping(0.0), _max_force(max_force) {};
+    // full actuator constructor
+    Spring(Mass * left, Mass * right, double k, double rest_length, SpringType type, double omega, double max_length,
+            double min_length, double expansion_rate) :
+            _left(left), _right(right), _k(k), _rest(rest_length), _type(type), _omega(omega), _damping(0.0),
+            _l_max(max_length), _l_min(min_length), _rate(expansion_rate){};
 
     void update(const CUDA_SPRING & spr);
     void setRestLength(double rest_length) { _rest = rest_length; } //sets Rest length
@@ -56,7 +57,10 @@ public:
     SpringType _type; // 0-3, for oscillating springs
     double _omega; // frequency of oscillation
     double _damping; // damping on the masses.
-    double _max_force; // maximum force for magnets
+    // Actuator
+    double _l_max; // maximum actuator length
+    double _l_min; // minimum actuator length
+    double _rate; // expansion rate [m/s]
 
 private:
     CUDA_SPRING *arrayptr; //Pointer to struct version for GPU cudaMalloc
@@ -67,6 +71,7 @@ private:
     friend class Lattice;
     friend class Cube;
     friend class Beam;
+    friend class RobotLink; // is this necessary
 };
 
 struct CUDA_SPRING {
@@ -85,8 +90,10 @@ struct CUDA_SPRING {
   SpringType _type;
   double _omega;
   double _damping;
-  // Magnet
-  double _max_force;
+  // Actuator
+  double _l_max; // maximum actuator length
+  double _l_min; // minimum actuator length
+  double _rate; // expansion rate [m/s]
 };
 
 } // namespace titan
