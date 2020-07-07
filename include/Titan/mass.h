@@ -93,14 +93,14 @@ struct CUDA_MASS {
     // Magnet Mass related properties
     double rad; // magnet_sphere radius
     double stiffness; // spring constant of the magnet shell
-    double max_mag_force; // maximum pull force excerted by the magnet
+    double max_mag_force; // maximum pull force exerted by the magnet
     double mag_scale_factor; // scales susceptibility to magnetic flux
 
     Vec pos; // position in m
     Vec vel; // velocity in m/s
     Vec acc; // acceleration in m/s^2
     Vec force; // vector to accumulate external forces
-    Vec extern_force; // external force applied every timestep
+    Vec extern_force; // external force applied every time step
 
 #ifdef RK2
     Vec __rk2_backup_pos;
