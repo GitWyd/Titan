@@ -28,9 +28,10 @@
 
 namespace titan {
 
-//#define MAX_BLOCKS 65535 // max number of CUDA blocks
-#define MAX_BLOCKS 32768
-#define THREADS_PER_BLOCK 1024
+#define MAX_BLOCKS 65535 // max number of CUDA blocks
+//#define MAX_BLOCKS 32768
+//#define THREADS_PER_BLOCK 1024
+#define THREADS_PER_BLOCK 512
 
 #ifndef GRAPHICS
 #endif
@@ -43,7 +44,6 @@ public:
 
     Spring * createSpring();
     Spring * createSpring(Mass * m1, Mass * m2);
-    Spring * createMagnet(Mass * m1, Mass * m2, double maximum_force); // creates magnet spring type
 
     // Delete
     void deleteMass(Mass * m);

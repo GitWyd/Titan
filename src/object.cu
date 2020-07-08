@@ -368,11 +368,12 @@ Beam::Beam(const Vec & center, const Vec & dims, int nx, int ny, int nz) {
         double min_length = min_exp_length; // contracted length of link
         double k_link = k; // link stiffness
         double max_mag_force = magnetic_force; // magnetic force of connector
-
-        ml = new Mass(pos1, mass, false, radius, max_mag_force, 1.0);
-        mr = new Mass(pos2, mass, false, radius, max_mag_force, 1.0);
+        // shell stiffness
+        ml = new Mass(pos1, mass, false, radius, 30000, max_mag_force, 1.0);
+        mr = new Mass(pos2, mass, false, radius, 30000, max_mag_force, 1.0);
         s = new Spring(ml, mr, k_link, min_length, PASSIVE_SOFT, 0.0, max_length,
                 min_length, expansion_rate);
+        s->_rest = min_length;
         // add masses and springs to respective vectors
         masses.push_back(ml);
         masses.push_back(mr);
