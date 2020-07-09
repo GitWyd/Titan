@@ -364,13 +364,13 @@ Beam::Beam(const Vec & center, const Vec & dims, int nx, int ny, int nz) {
  */
     RobotLink::RobotLink(const Vec &pos1, const Vec &pos2, double mass, double max_exp_length, double min_exp_length,
                          double expansion_rate, double k, double magnetic_force, double radius) {
-        double max_length = max_exp_length; // expanded link length (magnet center to magnet center)
-        double min_length = min_exp_length; // contracted length of link
-        double k_link = k; // link stiffness
-        double max_mag_force = magnetic_force; // magnetic force of connector
+        max_length = max_exp_length; // expanded link length (magnet center to magnet center)
+        min_length = min_exp_length; // contracted length of link
+        k_link = k; // link stiffness
+        max_mag_force = magnetic_force; // magnetic force of connector
         // shell stiffness
-        ml = new Mass(pos1, mass, false, radius, 30000, max_mag_force, 1.0);
-        mr = new Mass(pos2, mass, false, radius, 30000, max_mag_force, 1.0);
+        ml = new Mass(pos1, mass, false, radius, 30000.0, max_mag_force, 1.0);
+        mr = new Mass(pos2, mass, false, radius, 30000.0, max_mag_force, 1.0);
         s = new Spring(ml, mr, k_link, min_length, PASSIVE_SOFT, 0.0, max_length,
                 min_length, expansion_rate);
         s->_rest = min_length;
