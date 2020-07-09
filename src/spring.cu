@@ -7,9 +7,11 @@
 namespace titan {
 
 
-// this function is currently unneeded because springs do not need to be updated.
-// this should be updated if any features are implemented to change spring parameters.
-void Spring::update(const CUDA_SPRING & spr) {}
+// The only parameter that is being changed for springs in CUDA is _rest
+// Therefore, the update function is currently on updating the _rest parameter
+void Spring::update(const CUDA_SPRING & s) {
+        _rest = s._rest;
+}
 
 void Spring::defaultLength() { _rest = (_left -> pos - _right -> pos).norm() ; } // sets rest length
 
