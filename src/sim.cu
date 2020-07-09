@@ -1741,7 +1741,10 @@ void Simulation::generateBuffers() {
         this -> vertices = vertexbuffer;
     }
 }
-
+/*
+ * VISUALIZATION
+ * GL positions update
+ */
 __global__ void updateVertices(float * gl_ptr, CUDA_MASS ** d_mass, int num_masses) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -1751,7 +1754,10 @@ __global__ void updateVertices(float * gl_ptr, CUDA_MASS ** d_mass, int num_mass
         gl_ptr[3 * i + 2] = (float) d_mass[i] -> pos[2];
     }
 }
-
+/*
+ * VISUALIZATION
+ * GL update references to springs and masses
+ */
 __global__ void updateIndices(unsigned int * gl_ptr, CUDA_SPRING ** d_spring, CUDA_MASS ** d_mass, int num_springs, int num_masses) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
