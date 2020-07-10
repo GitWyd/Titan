@@ -1117,14 +1117,13 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
             temp = mass.pos-d_mass[j]->pos;
             temp_norm = temp.norm();
             if (i != j){
-                // if the mass bodies don't intersect
                 intersection_distance = temp_norm - (mass.rad + d_mass[j]->rad);
                 if ( intersection_distance < 0){
                     // if mass bodies intersect
                     mass.extern_force += abs(intersection_distance)*mass.stiffness * (temp/temp_norm);
                 } else {
                     // if masses are not intersecting
-                    mass.extern_force -= d_mass[j]->mag_scale_factor*mass.max_mag_force / pow(temp_norm,2) * (temp/temp_norm);
+                    mass.extern_force -= d_mass[j]->mag_scale_factor*mass.max_mag_force / max(pow(temp_norm,2),1e-12) * (temp/temp_norm);
                 }
             }
         }
