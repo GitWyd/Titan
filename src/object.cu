@@ -369,8 +369,8 @@ Beam::Beam(const Vec & center, const Vec & dims, int nx, int ny, int nz) {
         k_link = k; // link stiffness
         max_mag_force = magnetic_force; // magnetic force of connector
         // shell stiffness
-        ml = new Mass(pos1, mass, false, radius, 30000.0, max_mag_force, 1.0);
-        mr = new Mass(pos2, mass, false, radius, 30000.0, max_mag_force, 1.0);
+        ml = new Mass(pos1, mass, false, radius, 5000.0, max_mag_force, 1.0);
+        mr = new Mass(pos2, mass, false, radius, 5000.0, max_mag_force, 1.0);
         s = new Spring(ml, mr, k_link, min_length, PASSIVE_SOFT, 0.0, max_length,
                 min_length, expansion_rate);
         s->_rest = min_length;
@@ -783,7 +783,7 @@ void Ball::draw() {
 #ifdef GRAPHICS
 
 void ContactPlane::generateBuffers() {
-    glm::vec3 color = {0.22f, 0.71f, 0.0f};
+    glm::vec3 color = {0.22f, 0.01f, 0.0f};
     Vec temp = (dot(_normal, Vec(0, 1, 0)) < 0.8) ? Vec(0, 1, 0) : Vec(1, 0, 0);
 
     Vec v1 = cross(_normal, temp); // two unit vectors along plane
