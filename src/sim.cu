@@ -1105,7 +1105,6 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
     if (i < num_masses) {
         CUDA_MASS &mass = *d_mass[i];
 
-
 #ifdef CONSTRAINTS
         if (mass.constraints.fixed == 1)
             return;
@@ -1123,7 +1122,7 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
                 if ( intersection_distance < 0){
                     // if mass bodies intersect
                     mass.extern_force += abs(intersection_distance)*mass.stiffness * (temp/temp_norm);
-                    // debug
+                    #ifdef DEBUG
                     if (i > 4 && i < 8){
                         printf("%d: intersection_dist = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
                                i, intersection_distance, mass.m, mass.stiffness,
@@ -1134,10 +1133,12 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
                         printf("abs(intersection_distance) = %f", abs(intersection_distance));
                         printf("(temp/temp_norm)[1] = %f", (temp/temp_norm)[1]);
                     }
+                    #endif
                 }
+
                 // magnetic force
                 mass.extern_force -= d_mass[j]->mag_scale_factor*mass.max_mag_force / max(temp_norm*temp_norm,1e-12) * (temp/temp_norm);
-                // debug
+                #ifdef DEBUG
                 if (i > 4 && i < 8){
                     printf("%d: temp_norm = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
                            i, temp_norm, mass.m, mass.stiffness,
@@ -1146,6 +1147,7 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
                            mass.vel[0], mass.vel[1], mass.vel[2],
                            mass.acc[0], mass.acc[1], mass.pos[2]);
                 }
+                #endif
             }
         }
 
