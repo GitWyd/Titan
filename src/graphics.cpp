@@ -22,8 +22,8 @@ using namespace glm;
 namespace titan {
 
 glm::mat4 getProjection(const Vec & camera, const Vec & looks_at, const Vec & up) {
-    // Projection matrix : 45∞ Field of View, 4:3 ratio, display range : 0.1 unit <-> 100 units
-    glm::mat4 Projection = glm::perspective(glm::radians(45.0f), 4.0f / 3.0f, 0.1f, 100.0f);
+    // Projection matrix : 45∞ Field of View, 4:3 ratio, display range : 0.01 unit <-> 200 units
+    glm::mat4 Projection = glm::perspective(glm::radians(45.0f), 4.0f / 3.0f, 0.01f, 200.0f);
     // Or, for an ortho camera :
     //glm::mat4 Projection = glm::ortho(-10.0f,10.0f,-10.0f,10.0f,0.0f,100.0f); // In world coordinates
 

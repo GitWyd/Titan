@@ -788,7 +788,7 @@ void Ball::draw() {
  * Contact Plane Shader (Source: boxiXia)
  */
 void ContactPlane::generateBuffers() {
-    const int radius = 10; // radius [unit] of the plane
+    const int radius = 15; // radius [unit] of the plane
     // total 15*15*4*6=5400 points
 
     // define color
