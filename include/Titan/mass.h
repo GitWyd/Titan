@@ -15,7 +15,7 @@ struct CUDA_MASS;
 
 class Mass {
 public:
-    Mass(const Vec & position, double mass = 0.1, bool fixed = false, double radius = 0.0, double stiffness = 30000,
+    Mass(const Vec & position, double mass = 0.1, bool fixed = false, double radius = 0.0, double stiffness = 5000,
          double maximum_magnet_force = 0.0, double magnet_scale_factor = 0.0);
 
     //Properties

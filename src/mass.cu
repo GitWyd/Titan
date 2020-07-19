@@ -24,8 +24,11 @@ void Mass::operator=(CUDA_MASS & mass) {
     vel = mass.vel;
     valid = mass.valid;
     rad = mass.rad; // magnet_sphere radius
+    stiffness = mass.stiffness;
     max_mag_force = mass.max_mag_force; // maximum pull force excerted by the magnet
     mag_scale_factor = mass.mag_scale_factor; // scales susceptibility to magnetic flux
+
+    constraints.fixed = mass.constraints.fixed;
 
     acc = mass.acc;
     extern_force = mass.extern_force;
@@ -42,16 +45,18 @@ void Mass::operator=(CUDA_MASS & mass) {
 #endif
 }
 
-Mass::Mass(const Vec & position, double mass, bool fixed, double radius, double stiffness,
+Mass::Mass(const Vec & position, double mass, bool fixed, double radius, double mag_k,
            double maximum_magnet_force, double magnet_scale_factor) {
     m = mass;
     pos = position;
 
     rad = radius;
-    stiffness = stiffness;
+    stiffness = mag_k;
     max_mag_force = maximum_magnet_force;
     mag_scale_factor = magnet_scale_factor;
-    
+
+    constraints.fixed = fixed;
+
     T = 0;
     
     valid = true;
@@ -75,6 +80,8 @@ CUDA_MASS::CUDA_MASS(Mass &mass) {
     stiffness = mass.stiffness; // spring constant of the magnet shell
     max_mag_force = mass.max_mag_force;
     mag_scale_factor = mass.mag_scale_factor;
+
+    constraints.fixed = mass.constraints.fixed;
 
     valid = true;
 

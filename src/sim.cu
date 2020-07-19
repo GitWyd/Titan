@@ -1105,6 +1105,7 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
     if (i < num_masses) {
         CUDA_MASS &mass = *d_mass[i];
 
+
 #ifdef CONSTRAINTS
         if (mass.constraints.fixed == 1)
             return;
@@ -1113,6 +1114,7 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
         Vec temp; // temporary distance vector
         double temp_norm;
         double intersection_distance;
+        mass.extern_force = Vec(0,0,0); // reset external force
         for (int j = 0; j < num_masses; j++){
             temp = mass.pos-d_mass[j]->pos;
             temp_norm = temp.norm();
@@ -1121,16 +1123,35 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
                 if ( intersection_distance < 0){
                     // if mass bodies intersect
                     mass.extern_force += abs(intersection_distance)*mass.stiffness * (temp/temp_norm);
+                    // debug
+                    if (i > 4 && i < 8){
+                        printf("%d: intersection_dist = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
+                               i, intersection_distance, mass.m, mass.stiffness,
+                               mass.extern_force[0],mass.extern_force[1],mass.extern_force[2],
+                               mass.pos[0], mass.pos[1], mass.pos[2],
+                               mass.vel[0], mass.vel[1], mass.vel[2],
+                               mass.acc[0], mass.acc[1], mass.pos[2]);
+                        printf("abs(intersection_distance) = %f", abs(intersection_distance));
+                        printf("(temp/temp_norm)[1] = %f", (temp/temp_norm)[1]);
+                    }
                 }
                 // magnetic force
                 mass.extern_force -= d_mass[j]->mag_scale_factor*mass.max_mag_force / max(temp_norm*temp_norm,1e-12) * (temp/temp_norm);
+                // debug
+                if (i > 4 && i < 8){
+                    printf("%d: temp_norm = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
+                           i, temp_norm, mass.m, mass.stiffness,
+                           mass.extern_force[0],mass.extern_force[1],mass.extern_force[2],
+                           mass.pos[0], mass.pos[1], mass.pos[2],
+                           mass.vel[0], mass.vel[1], mass.vel[2],
+                           mass.acc[0], mass.acc[1], mass.pos[2]);
+                }
             }
         }
 
         mass.force += mass.m * global_acc;
         mass.force += mass.extern_force;
 
-        mass.extern_force = Vec(0,0,0); // reset external force
 
         for (int j = 0; j < c.num_planes; j++) { // global constraints
             c.d_planes[j].applyForce(&mass);
@@ -1160,7 +1181,7 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
         // NOTE TODO this is really janky. On certain platforms, the following code causes excessive memory usage on the GPU.
         double vel_norm = mass.vel.norm();
         if (vel_norm != 0.0) {
-            mass.force += - mass.constraints.drag_coefficient * pow(vel_norm, 2) * mass.vel / vel_norm; // drag
+            mass.force += - mass.constraints.drag_coefficient * (vel_norm*vel_norm) * mass.vel / vel_norm; // drag
         }
 #endif
 
