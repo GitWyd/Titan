@@ -825,7 +825,49 @@ __global__ void createMassPointers(CUDA_MASS ** ptrs, CUDA_MASS * data, int size
         *ptrs[i] = data[i];
     }
 }
+/* ToDo: Implement occupancy grid
+CUDA_MASS ** Simulation::massToOccupancyGrid() {
+    int occupancy_grid_size = masses.size()*occupancy_grid_dim*occupancy_grid_dim;
+    CUDA_MASS ** d_ptrs = new CUDA_MASS * [occupancy_grid_size]; // array of pointers
+    for (int i = 0; i < occupancy_grid_size; i++) { // potentially slow
+        gpuErrchk(cudaMalloc((void **) (d_ptrs + i), sizeof(CUDA_MASS))); // TODO Fix this shit
+    }
 
+    d_occupancy_grids = thrust::device_vector<CUDA_MASS *>(d_ptrs, d_ptrs + occupancy_grid_size);
+    CUDA_MASS * h_data = new CUDA_MASS[masses.size()]; // copy masses into single array for copying to the GPU, set GPU pointers
+
+    int count = 0;
+    for (Mass * m : masses) {
+        m -> arrayptr = d_ptrs[count];
+        h_data[count] = CUDA_MASS(*m);
+
+        count++;
+    }
+
+    delete [] d_ptrs;
+
+    CUDA_MASS * d_data; // copy to the GPU
+    gpuErrchk(cudaMalloc((void **)&d_data, sizeof(CUDA_MASS) * masses.size()));
+    gpuErrchk(cudaMemcpy(d_data, h_data, sizeof(CUDA_MASS) * masses.size(), cudaMemcpyHostToDevice));
+
+    delete [] h_data;
+
+    massBlocksPerGrid = (masses.size() + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+
+    if (massBlocksPerGrid > MAX_BLOCKS) {
+        massBlocksPerGrid = MAX_BLOCKS;
+    }
+
+    if (massBlocksPerGrid < 1) {
+        massBlocksPerGrid = 1;
+    }
+
+    createMassPointers<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(thrust::raw_pointer_cast(d_masses.data()), d_data, masses.size());
+    gpuErrchk(cudaFree(d_data));
+
+    return thrust::raw_pointer_cast(d_masses.data()); // doesn't really do anything
+}
+*/
 CUDA_MASS ** Simulation::massToArray() {
     CUDA_MASS ** d_ptrs = new CUDA_MASS * [masses.size()]; // array of pointers
     for (int i = 0; i < masses.size(); i++) { // potentially slow
@@ -1095,11 +1137,67 @@ double Simulation::time() {
 bool Simulation::running() {
     return this -> RUNNING;
 }
+/*
+ * compute external magnet forces
+ * and itterates in CUDA parallelized fashion over all masses
+ */
+/*
+__global__ void computeExternalMagnetForces(CUDA_MASS ** d_mass, int num_masses, double dt, double T, CUDA_GLOBAL_CONSTRAINTS c) {
+    int idx = blockDim.x * blockIdx.x + threadIdx.x;
+    int i = idx/num_masses;
+    int j = idx%num_masses;
+    if (i < num_masses) {
+        CUDA_MASS &mass = *d_mass[i];
+#ifdef CONSTRAINTS
+        if (mass.constraints.fixed == 1)
+            return;
+#endif
+        // Compute External Magnet Forces
+        Vec temp; // temporary distance vector
+        double temp_norm;
+        double intersection_distance;
+        temp = mass.pos-d_mass[j]->pos;
+        temp_norm = temp.norm();
+        if (i != j && temp_norm < 0.14){
+            intersection_distance = temp_norm - (mass.rad + d_mass[j]->rad);
+            if ( intersection_distance < 0.0 ){
+                // if mass bodies intersect
+                mass.extern_force += abs(intersection_distance)*mass.stiffness * (temp/temp_norm);
+#ifdef DEBUG
+                if (i > 4 && i < 8){
+                    printf("%d: intersection_dist = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
+                           i, intersection_distance, mass.m, mass.stiffness,
+                           mass.extern_force[0],mass.extern_force[1],mass.extern_force[2],
+                           mass.pos[0], mass.pos[1], mass.pos[2],
+                           mass.vel[0], mass.vel[1], mass.vel[2],
+                           mass.acc[0], mass.acc[1], mass.pos[2]);
+                    printf("abs(intersection_distance) = %f", abs(intersection_distance));
+                    printf("(temp/temp_norm)[1] = %f", (temp/temp_norm)[1]);
+                }
+#endif
+            }
+
+            // magnetic force
+            mass.extern_force -= d_mass[j]->mag_scale_factor*mass.max_mag_force / max(temp_norm*temp_norm,1e-12) * (temp/temp_norm);
+#ifdef DEBUG
+            if (i > 4 && i < 8){
+                printf("%d: temp_norm = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
+                       i, temp_norm, mass.m, mass.stiffness,
+                       mass.extern_force[0],mass.extern_force[1],mass.extern_force[2],
+                       mass.pos[0], mass.pos[1], mass.pos[2],
+                       mass.vel[0], mass.vel[1], mass.vel[2],
+                       mass.acc[0], mass.acc[1], mass.pos[2]);
+            }
+#endif
+        }
+    }
+}
+*/
 
 #ifdef RK2
-template <bool step>
+    template <bool step>
 #endif
-__global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double dt, double T, Vec global_acc, CUDA_GLOBAL_CONSTRAINTS c) {
+    __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double dt, double T, Vec global_acc, CUDA_GLOBAL_CONSTRAINTS c) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (i < num_masses) {
@@ -1109,48 +1207,26 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
         if (mass.constraints.fixed == 1)
             return;
 #endif
-        // Compute External Magnet Forces
+        //compute External Magnet Forces
         Vec temp; // temporary distance vector
         double temp_norm;
         double intersection_distance;
-        mass.extern_force = Vec(0,0,0); // reset external force
-        for (int j = 0; j < num_masses; j++){
-            temp = mass.pos-d_mass[j]->pos;
+        for (int j = 0; j < num_masses; j++) {
+            temp = mass.pos - d_mass[j]->pos;
             temp_norm = temp.norm();
-            if (i != j && temp_norm < 0.14){
+            if (i != j && temp_norm < 0.14) {
                 intersection_distance = temp_norm - (mass.rad + d_mass[j]->rad);
-                if ( intersection_distance < 0.0 ){
+                if (intersection_distance < 0.0) {
                     // if mass bodies intersect
-                    mass.extern_force += abs(intersection_distance)*mass.stiffness * (temp/temp_norm);
-                    #ifdef DEBUG
-                    if (i > 4 && i < 8){
-                        printf("%d: intersection_dist = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
-                               i, intersection_distance, mass.m, mass.stiffness,
-                               mass.extern_force[0],mass.extern_force[1],mass.extern_force[2],
-                               mass.pos[0], mass.pos[1], mass.pos[2],
-                               mass.vel[0], mass.vel[1], mass.vel[2],
-                               mass.acc[0], mass.acc[1], mass.pos[2]);
-                        printf("abs(intersection_distance) = %f", abs(intersection_distance));
-                        printf("(temp/temp_norm)[1] = %f", (temp/temp_norm)[1]);
-                    }
-                    #endif
+                    mass.extern_force += abs(intersection_distance) * mass.stiffness * (temp / temp_norm);
                 }
 
                 // magnetic force
-                mass.extern_force -= d_mass[j]->mag_scale_factor*mass.max_mag_force / max(temp_norm*temp_norm,1e-12) * (temp/temp_norm);
-                #ifdef DEBUG
-                if (i > 4 && i < 8){
-                    printf("%d: temp_norm = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
-                           i, temp_norm, mass.m, mass.stiffness,
-                           mass.extern_force[0],mass.extern_force[1],mass.extern_force[2],
-                           mass.pos[0], mass.pos[1], mass.pos[2],
-                           mass.vel[0], mass.vel[1], mass.vel[2],
-                           mass.acc[0], mass.acc[1], mass.pos[2]);
-                }
-                #endif
+                mass.extern_force -=
+                        d_mass[j]->mag_scale_factor * mass.max_mag_force / max(temp_norm * temp_norm, 1e-12) *
+                        (temp / temp_norm);
             }
         }
-
         mass.force += mass.m * global_acc;
         mass.force += mass.extern_force;
 
@@ -1217,6 +1293,7 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
         mass.T += dt;
 #endif
         mass.force = Vec(0, 0, 0);
+        mass.extern_force = Vec(0,0,0); // reset external force
     }
 }
 
@@ -1624,19 +1701,33 @@ void Simulation::execute() {
 #ifdef RK2
         computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), dt, T); // compute mass forces after syncing
         gpuErrchk( cudaPeekAtLastError() );
+        // O(N^2) parallelized external magnet force interaction computation
+        /*
+        computeExternalMagnetForces<<<masses.size()*masses.size(), THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, d_constraints);
+        gpuErrchk( cudaPeekAtLastError() );
+         */
         massForcesAndUpdate<true><<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints);
         gpuErrchk( cudaPeekAtLastError() );
         T += 0.5 * dt;
 
         computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), dt, T); // compute mass forces after syncing
         gpuErrchk( cudaPeekAtLastError() );
+        // O(N^2) parallelized external magnet force interaction computation
+        /*
+        computeExternalMagnetForces<<<masses.size()*masses.size(), THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, d_constraints);
+        gpuErrchk( cudaPeekAtLastError() );
+         */
         massForcesAndUpdate<false><<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints);
         gpuErrchk( cudaPeekAtLastError() );
         T += 0.5 * dt;
 #else
         computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), dt, T); // compute mass forces after syncing
         gpuErrchk( cudaPeekAtLastError() );
-
+        /*
+        // O(N^2) parallelized external magnet force interaction computation
+        computeExternalMagnetForces<<<masses.size()*masses.size(), THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, d_constraints);
+        gpuErrchk( cudaPeekAtLastError() );
+        */
         massForcesAndUpdate<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints);
         gpuErrchk( cudaPeekAtLastError() );
         T += dt;

@@ -166,7 +166,14 @@ private:
 
     CUDA_MASS ** d_mass;
     CUDA_SPRING ** d_spring;
-
+    /* ToDo: Implement Occupancy grid
+    // occupancy grid
+    int occupancy_grid_dim = 5;
+    CUDA_MASS ** d_occupancy_grid;
+    thrust::device_vector<CUDA_MASS *> d_occupancy_grids;
+    CUDA_MASS ** massToOccupancyGrid();
+    void massFromOccupancyGrid();
+    */
     int massBlocksPerGrid;
     int springBlocksPerGrid;
 
