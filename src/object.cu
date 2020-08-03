@@ -788,7 +788,7 @@ void Ball::draw() {
  * Contact Plane Shader (Source: boxiXia)
  */
 void ContactPlane::generateBuffers() {
-    const int radius = 25; // radius [unit] of the plane
+    const int radius = 10; // radius [unit] of the plane
     // 10*10*4*6 = 2400
     // total 15*15*4*6=5400 points
 
@@ -878,7 +878,7 @@ void ContactPlane::draw() {
     );
 
     // Draw the triangle !
-    glDrawArrays(GL_TRIANGLES, 0, 25*25*4*6); // number of vertices
+    glDrawArrays(GL_TRIANGLES, 0, 10*10*4*6); // number of vertices
 
     glDisableVertexAttribArray(1);
     glDisableVertexAttribArray(0);

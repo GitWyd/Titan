@@ -90,8 +90,8 @@ Simulation::Simulation() {
     update_colors = true;
     update_indices = true;
 
-    lineWidth = 1;
-    pointSize = 3;
+    lineWidth = 15;
+    pointSize = 15;
 
     camera = Vec(15, 15, 7);
     looks_at = Vec(0, 0, 2);
@@ -119,8 +119,8 @@ void Simulation::reset() {
     update_colors = true;
     update_indices = true;
 
-    lineWidth = 1;
-    pointSize = 3;
+    lineWidth = 15;
+    pointSize = 15;
 
     camera = Vec(15, 15, 7);
     looks_at = Vec(0, 0, 2);
@@ -1117,9 +1117,9 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
         for (int j = 0; j < num_masses; j++){
             temp = mass.pos-d_mass[j]->pos;
             temp_norm = temp.norm();
-            if (i != j && temp_norm < 0.27){
+            if (i != j && temp_norm < 0.14){
                 intersection_distance = temp_norm - (mass.rad + d_mass[j]->rad);
-                if ( intersection_distance < 0){
+                if ( intersection_distance < 0.0 ){
                     // if mass bodies intersect
                     mass.extern_force += abs(intersection_distance)*mass.stiffness * (temp/temp_norm);
                     #ifdef DEBUG
@@ -1210,6 +1210,9 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
 #else // simple leapfrog Euler integration
         mass.acc = mass.force / mass.m;
         mass.vel = mass.vel + mass.acc * dt;
+        // mass velocity threshold cuttoff
+        vel_norm = mass.vel.norm();
+        mass.vel = (vel_norm > 1) ? mass.vel/vel_norm  : mass.vel;
         mass.pos = mass.pos + mass.vel * dt;
         mass.T += dt;
 #endif
