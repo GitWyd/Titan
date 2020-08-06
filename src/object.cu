@@ -401,7 +401,7 @@ Beam::Beam(const Vec & center, const Vec & dims, int nx, int ny, int nz) {
             s->_type = PASSIVE_SOFT;
             return false;
         } else {
-            s->_type = ACTUATED_EXPAND;
+            s->_type = ACTUATED_CONTRACT;
             return true;
         }
     }
