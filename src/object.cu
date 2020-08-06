@@ -405,6 +405,19 @@ Beam::Beam(const Vec & center, const Vec & dims, int nx, int ny, int nz) {
             return true;
         }
     }
+    bool RobotLink::setLength(double length) {
+        if (length - s->_rest > 0.01*min_length){
+            s->_type = ACTUATED_EXPAND;
+            return true;
+
+        } else if (length - s->_rest < 0.01*min_length){
+            s->_type = ACTUATED_CONTRACT;
+            return true;
+        } else {
+            s->_type = PASSIVE_SOFT;
+            return false;
+        }
+    }
 
     // removes magnet force from masses
     bool RobotLink::detach() {

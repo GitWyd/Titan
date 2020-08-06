@@ -315,6 +315,12 @@ public:
      * puts robot link into contraction mode unless it is already at full length
      */
     bool contract();
+    /*
+     * setLength(double length)
+     * returns True if link is still in the process of approaching length, and false otherwise
+     * puts robot link at length unless it is already at length
+     */
+    bool setLength(double length);
     bool detach();
     bool attach();
     void setExpansionRate(double exp_rate);
