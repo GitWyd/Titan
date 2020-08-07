@@ -410,7 +410,7 @@ Beam::Beam(const Vec & center, const Vec & dims, int nx, int ny, int nz) {
             s->_type = ACTUATED_EXPAND;
             return true;
 
-        } else if (length - s->_rest < 0.01*min_length){
+        } else if (length - s->_rest < -0.01*min_length){
             s->_type = ACTUATED_CONTRACT;
             return true;
         } else {
