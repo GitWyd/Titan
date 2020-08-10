@@ -11,6 +11,7 @@ Mass::Mass() {
     valid = true;
     arrayptr = nullptr;
     ref_count = 0;
+    og_idx = -1; // idx is negative, as in not set
 
 #ifdef GRAPHICS
     color = Vec(1.0, 0.2, 0.2);
@@ -32,6 +33,8 @@ void Mass::operator=(CUDA_MASS & mass) {
 
     acc = mass.acc;
     extern_force = mass.extern_force;
+
+    og_idx = mass.og_idx;
 
     ref_count = this -> ref_count;
     arrayptr = this -> arrayptr;
@@ -75,6 +78,8 @@ CUDA_MASS::CUDA_MASS(Mass &mass) {
     pos = mass.pos;
     vel = mass.vel;
     extern_force = mass.extern_force;
+
+    og_idx = mass.og_idx;
 
     rad = mass.rad;
     stiffness = mass.stiffness; // spring constant of the magnet shell

@@ -33,6 +33,9 @@ public:
     void setExternalForce(const Vec & v) { extern_force = v; }
     Vec acceleration() { return acc; }
 
+    // occupancy grid idx
+    int og_idx; // 1D idx of 2D occupancy grid
+
 #ifdef CONSTRAINTS
     void addConstraint(CONSTRAINT_TYPE type, const Vec & vec, double num);
     void clearConstraints(CONSTRAINT_TYPE type);
@@ -95,6 +98,9 @@ struct CUDA_MASS {
     double stiffness; // spring constant of the magnet shell
     double max_mag_force; // maximum pull force exerted by the magnet
     double mag_scale_factor; // scales susceptibility to magnetic flux
+
+    // occupancy grid idx
+    int og_idx; // 1D idx of 2D occupancy grid
 
     Vec pos; // position in m
     Vec vel; // velocity in m/s

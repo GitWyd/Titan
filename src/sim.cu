@@ -129,6 +129,7 @@ void Simulation::reset() {
 }
 
 void Simulation::freeGPU() {
+    freeOccupancyGrid();
     for (Spring * s : springs) {
         if (s -> _left && ! s -> _left -> valid) {
             if (s -> _left -> arrayptr) {
@@ -638,7 +639,7 @@ void Simulation::set(Spring * s) {
     CUDA_SPRING temp = CUDA_SPRING(*s);
     gpuErrchk(cudaMemcpy(s -> arrayptr, &temp, sizeof(CUDA_SPRING), cudaMemcpyHostToDevice));
 }
-
+//ToDo: No springFromArray() implementation (springs are not being updated)
 void Simulation::getAll() {
     if (!STARTED) {
         std::cerr << "The simulation has not started. Get and set commands cannot be called before sim.start()" << std::endl;
@@ -818,6 +819,57 @@ void Simulation::setBreakpoint(double time) {
     bpts.insert(time); // TODO mutex breakpoints
 }
 
+//ToDo: Occupancy Grid Implementation
+// ToDo:Implement writeOgArray() device function
+    __device__ void writeOgArray(CUDA_MASS ** d_mass, int num_masses, CUDA_MASS ** og){
+        int i = blockDim.x * blockIdx.x + threadIdx.x;
+        if (i < num_masses){
+            og[d_mass[i]->og_idx] = d_mass[i];
+        }
+    }
+// Implement compugeOgIdx() kernel
+// CUDA_MASS ** d_mass, int num_masses, double dt, double T, Vec global_acc, CUDA_GLOBAL_CONSTRAINTS c
+__global__ void computeOgIdx(CUDA_MASS ** d_mass, int num_masses, int * og_counter, CUDA_MASS ** og, int og_size, int og_offset, int cell_capacity, double cell_size){
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    CUDA_MASS * m = d_mass[i];
+    int idx_2D;
+    int x_val, y_val;
+    if (i < num_masses){
+        // compute cell location
+        x_val = int( floorf( m->pos[0]/cell_size ) ) + og_offset;
+        y_val = int( floorf( m->pos[1]/cell_size ) ) + og_offset;
+        // limit x & y coordinates to occupancy grid
+        x_val = (x_val > (og_size-1) ? og_size-1 : x_val);
+        y_val = (y_val > (og_size-1) ? og_size-1 : y_val);
+        x_val = (x_val < 0 ? 0 : x_val);
+        y_val = (y_val < 0 ? 0 : y_val);
+        idx_2D = og_size*x_val + y_val; // compute 2D index of counter in og_counter
+        m->og_idx = x_val + og_size*(y_val + cell_capacity * (og_counter[idx_2D])); // compute 3D idx for occupancy grid
+        atomicAdd(&og_counter[idx_2D], 1); // increment nr_masses in cell
+    }
+    // write CUDA_MASS * references to OG
+    writeOgArray(d_mass, num_masses, og);
+}
+void Simulation::initializeOG() {
+    int og_grid_size = occupancy_grid_dim * occupancy_grid_dim * occupancy_grid_max_masses_per_cell;
+    int og_counter_size = occupancy_grid_dim * occupancy_grid_dim;
+    // allocate OG array of CUDA_MASS pointers on device
+    gpuErrchk(cudaMalloc((void **) &d_occupancy_grid,
+                         sizeof(CUDA_MASS *) * og_grid_size));
+    // allocate og counter
+    gpuErrchk(cudaMalloc((int **) &d_og_counter, sizeof(int *) * og_counter_size));
+    computeOgIdx<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), d_og_counter,
+            d_occupancy_grid, occupancy_grid_dim, occupancy_grid_offset, occupancy_grid_max_masses_per_cell, og_cell_size);
+    gpuErrchk( cudaPeekAtLastError() );
+    //massForcesAndUpdate<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints);
+
+}
+void Simulation::freeOccupancyGrid() {
+    // free occupancy grid counter
+    gpuErrchk(cudaFree(d_og_counter));
+    // free occupancy grid
+    gpuErrchk(cudaFree(d_occupancy_grid));
+}
 __global__ void createMassPointers(CUDA_MASS ** ptrs, CUDA_MASS * data, int size) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -825,49 +877,6 @@ __global__ void createMassPointers(CUDA_MASS ** ptrs, CUDA_MASS * data, int size
         *ptrs[i] = data[i];
     }
 }
-/* ToDo: Implement occupancy grid
-CUDA_MASS ** Simulation::massToOccupancyGrid() {
-    int occupancy_grid_size = masses.size()*occupancy_grid_dim*occupancy_grid_dim;
-    CUDA_MASS ** d_ptrs = new CUDA_MASS * [occupancy_grid_size]; // array of pointers
-    for (int i = 0; i < occupancy_grid_size; i++) { // potentially slow
-        gpuErrchk(cudaMalloc((void **) (d_ptrs + i), sizeof(CUDA_MASS))); // TODO Fix this shit
-    }
-
-    d_occupancy_grids = thrust::device_vector<CUDA_MASS *>(d_ptrs, d_ptrs + occupancy_grid_size);
-    CUDA_MASS * h_data = new CUDA_MASS[masses.size()]; // copy masses into single array for copying to the GPU, set GPU pointers
-
-    int count = 0;
-    for (Mass * m : masses) {
-        m -> arrayptr = d_ptrs[count];
-        h_data[count] = CUDA_MASS(*m);
-
-        count++;
-    }
-
-    delete [] d_ptrs;
-
-    CUDA_MASS * d_data; // copy to the GPU
-    gpuErrchk(cudaMalloc((void **)&d_data, sizeof(CUDA_MASS) * masses.size()));
-    gpuErrchk(cudaMemcpy(d_data, h_data, sizeof(CUDA_MASS) * masses.size(), cudaMemcpyHostToDevice));
-
-    delete [] h_data;
-
-    massBlocksPerGrid = (masses.size() + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-
-    if (massBlocksPerGrid > MAX_BLOCKS) {
-        massBlocksPerGrid = MAX_BLOCKS;
-    }
-
-    if (massBlocksPerGrid < 1) {
-        massBlocksPerGrid = 1;
-    }
-
-    createMassPointers<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(thrust::raw_pointer_cast(d_masses.data()), d_data, masses.size());
-    gpuErrchk(cudaFree(d_data));
-
-    return thrust::raw_pointer_cast(d_masses.data()); // doesn't really do anything
-}
-*/
 CUDA_MASS ** Simulation::massToArray() {
     CUDA_MASS ** d_ptrs = new CUDA_MASS * [masses.size()]; // array of pointers
     for (int i = 0; i < masses.size(); i++) { // potentially slow
@@ -1483,6 +1492,8 @@ void Simulation::start() {
     if (masses.size() == 0) {
         throw std::runtime_error("No masses have been added. Please add masses before starting the simulation.");
     }
+    // initialize occupancy grid
+    initializeOG();
 
     std::cout << "Starting simulation with " << masses.size() << " masses and " << springs.size() << " springs." << std::endl;
 
