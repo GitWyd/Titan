@@ -57,7 +57,7 @@ set(TITAN_HEADER_FILES
     ${TITAN_INCLUDE_DIR}/graphics.h
     ${TITAN_INCLUDE_DIR}/shader.h
     ${TITAN_INCLUDE_DIR}/stlparser.h
-        include/Titan/og.h src/og.cu)
+)
 
 # if building as a shared library
 if (TITAN_SHARED_BUILD)
