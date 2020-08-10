@@ -123,6 +123,7 @@ public:
     std::vector<Container *> containers;
 
 #ifdef GRAPHICS
+    double fps(); // returns fps as computed by #drawings/realtime_second
     void setViewport(const Vec & camera_position, const Vec & target_location, const Vec & up_vector);
     void moveViewport(const Vec & displacement);
     glm::mat4 & getProjectionMatrix();
@@ -142,7 +143,11 @@ private:
 
     double dt; // set to 0 by default, when start is called will be set to min(mass dt) unless previously set
     double T; // global simulation time
-
+#ifdef GRAPHICS
+    int fps_draw_counter; // last computed fps value
+    std::chrono::time_point<std::chrono::system_clock> t_fps_before;
+    std::chrono::time_point<std::chrono::system_clock> t_fps_now;
+#endif
     static bool RUNNING;
     static bool STARTED;
     static bool ENDED;

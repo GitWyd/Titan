@@ -831,10 +831,10 @@ void Simulation::setBreakpoint(double time) {
 // CUDA_MASS ** d_mass, int num_masses, double dt, double T, Vec global_acc, CUDA_GLOBAL_CONSTRAINTS c
 __global__ void computeOgIdx(CUDA_MASS ** d_mass, int num_masses, int * og_counter, CUDA_MASS ** og, int og_size, int og_offset, int cell_capacity, double cell_size){
     int i = blockDim.x * blockIdx.x + threadIdx.x;
-    CUDA_MASS * m = d_mass[i];
-    int idx_2D;
-    int x_val, y_val;
     if (i < num_masses){
+        CUDA_MASS * m = d_mass[i];
+        int idx_2D;
+        int x_val, y_val;
         // compute cell location
         x_val = int( floorf( m->pos[0]/cell_size ) ) + og_offset;
         y_val = int( floorf( m->pos[1]/cell_size ) ) + og_offset;
@@ -844,11 +844,14 @@ __global__ void computeOgIdx(CUDA_MASS ** d_mass, int num_masses, int * og_count
         x_val = (x_val < 0 ? 0 : x_val);
         y_val = (y_val < 0 ? 0 : y_val);
         idx_2D = og_size*x_val + y_val; // compute 2D index of counter in og_counter
+        printf("mass %i has idx_2D %i\n", i, idx_2D);
         m->og_idx = x_val + og_size*(y_val + cell_capacity * (og_counter[idx_2D])); // compute 3D idx for occupancy grid
+        printf("mass %i has idx_3D %i\n", i, m->og_idx);
         atomicAdd(&og_counter[idx_2D], 1); // increment nr_masses in cell
+        printf("mass %i is in occupancy grid cell x: %i, y: %i, with count: %i\n", i, x_val, y_val, og_counter[idx_2D]);
+        // write CUDA_MASS * references to OG
+        writeOgArray(d_mass, num_masses, og);
     }
-    // write CUDA_MASS * references to OG
-    writeOgArray(d_mass, num_masses, og);
 }
 void Simulation::initializeOG() {
     int og_grid_size = occupancy_grid_dim * occupancy_grid_dim * occupancy_grid_max_masses_per_cell;
@@ -856,8 +859,11 @@ void Simulation::initializeOG() {
     // allocate OG array of CUDA_MASS pointers on device
     gpuErrchk(cudaMalloc((void **) &d_occupancy_grid,
                          sizeof(CUDA_MASS *) * og_grid_size));
+    printf("initialized d_occupancy_grid\n");
     // allocate og counter
     gpuErrchk(cudaMalloc((int **) &d_og_counter, sizeof(int *) * og_counter_size));
+    printf("initialized d_og_counter\n");
+    printf("Check if I can call masses.size(): %i\n", masses.size());
     computeOgIdx<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), d_og_counter,
             d_occupancy_grid, occupancy_grid_dim, occupancy_grid_offset, occupancy_grid_max_masses_per_cell, og_cell_size);
     gpuErrchk( cudaPeekAtLastError() );
@@ -1136,6 +1142,20 @@ __global__ void computeSpringForces(CUDA_SPRING ** d_spring, int num_springs, do
         spring._left -> force.atomicVecAdd(-force);
 #endif
 
+    }
+}
+double Simulation::fps(){
+    std::chrono::duration<double> time_passed = t_fps_now-t_fps_before;
+    double nr_seconds_passed = time_passed.count();
+    if (nr_seconds_passed > 0){
+        t_fps_before = t_fps_now;
+        double fps = fps_draw_counter/nr_seconds_passed;
+        fps_draw_counter = 0;
+        return fps;
+    } else {
+        t_fps_before = t_fps_now;
+        fps_draw_counter = 0;
+        return -1.0;
     }
 }
 
@@ -1492,8 +1512,6 @@ void Simulation::start() {
     if (masses.size() == 0) {
         throw std::runtime_error("No masses have been added. Please add masses before starting the simulation.");
     }
-    // initialize occupancy grid
-    initializeOG();
 
     std::cout << "Starting simulation with " << masses.size() << " masses and " << springs.size() << " springs." << std::endl;
 
@@ -1525,6 +1543,10 @@ void Simulation::start() {
 
     d_mass = thrust::raw_pointer_cast(d_masses.data());
     d_spring = thrust::raw_pointer_cast(d_springs.data());
+
+    // initialize occupancy grid
+    printf("Calling initializeOg() @ line 1534\n");
+    initializeOG();
 
     gpu_thread = std::thread(&Simulation::_run, this);
 }
@@ -1641,6 +1663,7 @@ void Simulation::resume() {
 }
 
 void Simulation::execute() {
+    t_fps_now = std::chrono::system_clock::now(); // set initial before times
     while (1) {
         if (!bpts.empty() && *bpts.begin() <= T) {
             cudaDeviceSynchronize(); // synchronize before updating the springs and mass positions
@@ -1745,6 +1768,7 @@ void Simulation::execute() {
 #endif
 
 #ifdef GRAPHICS
+
         if (fmod(T, 0.01) < dt) {
             clearScreen();
 
@@ -1756,6 +1780,8 @@ void Simulation::execute() {
             }
 
             renderScreen();
+            fps_draw_counter++; // count how many times the simulation has rendered a screen
+            t_fps_now = std::chrono::system_clock::now();
 
 #ifndef SDL2
             if (glfwGetKey(window, GLFW_KEY_ESCAPE ) == GLFW_PRESS || glfwWindowShouldClose(window) != 0) {
