@@ -1270,15 +1270,38 @@ __global__ void computeExternalMagnetForces(CUDA_MASS ** d_mass, int num_masses,
     }
 }
 */
-    __device__ void computeExternalMagnetForces(int i, CUDA_MASS ** d_mass, int num_masses){
-        CUDA_MASS &mass = *d_mass[i];
-        Vec temp; // temporary distance vector
-        double temp_norm;
-        double intersection_distance;
-        for (int j = 0; j < num_masses; j++) {
-            temp = mass.pos - d_mass[j]->pos;
-            temp_norm = temp.norm();
-            if (i != j && temp_norm < 0.14) {
+__device__ void computeExternalMagnetForce(CUDA_MASS * m1, CUDA_MASS * m2){
+    Vec temp; // temporary distance vector
+    double temp_norm;
+    double intersection_distance = temp_norm - (m1->rad + m2->rad);
+    temp = m1->pos - m2->pos;
+    temp_norm = temp.norm();
+    if (temp_norm < 0.14) {
+        if (intersection_distance < 0.0) {
+            // if mass bodies intersect
+            m1->extern_force += abs(intersection_distance) * m1->stiffness * (temp / temp_norm);
+        }
+
+        // magnetic force
+        m1->extern_force -=
+                m2->mag_scale_factor * m1->max_mag_force / max(temp_norm * temp_norm, 1e-12) *
+                (temp / temp_norm);
+    }
+}
+__device__ void computeExternalMagnetForces(int idx, CUDA_MASS ** d_mass, int num_masses){
+    CUDA_MASS &mass = *d_mass[idx];
+    /*
+    Vec temp; // temporary distance vector
+    double temp_norm;
+    double intersection_distance;
+     */
+    for (int j = 0; j < num_masses; j++) {
+        //temp = mass.pos - d_mass[j]->pos;
+        //temp_norm = temp.norm();
+        if (idx != j){
+            computeExternalMagnetForce(d_mass[idx], d_mass[j]);
+            /*
+            if(temp_norm < 0.14) {
                 intersection_distance = temp_norm - (mass.rad + d_mass[j]->rad);
                 if (intersection_distance < 0.0) {
                     // if mass bodies intersect
@@ -1290,32 +1313,21 @@ __global__ void computeExternalMagnetForces(CUDA_MASS ** d_mass, int num_masses,
                         d_mass[j]->mag_scale_factor * mass.max_mag_force / max(temp_norm * temp_norm, 1e-12) *
                         (temp / temp_norm);
             }
+             */
         }
     }
+}
 
-__device__ void computeExternalMagnetForcesOG(int i, CUDA_MASS ** d_mass, int num_masses, CUDA_MASS ** og, int * og_counter, int og_size, int og_offset, int cell_capacity, double cell_size){
-    CUDA_MASS &mass = *d_mass[i];
+__device__ void computeExternalMagnetForcesOG(int idx, CUDA_MASS ** d_mass, int num_masses, CUDA_MASS ** og, int * og_counter, int og_size, int og_offset, int cell_capacity, double cell_size){
+    CUDA_MASS &mass = *d_mass[idx];
     int m_x = get2DCellValue(mass.pos[0], cell_size, og_offset, og_size);
     int m_y = get2DCellValue(mass.pos[1], cell_size, og_offset, og_size);
-
-    Vec temp; // temporary distance vector
-    double temp_norm;
-    double intersection_distance;
-
-    for (int j = 0; j < num_masses; j++) {
-        temp = mass.pos - d_mass[j]->pos;
-        temp_norm = temp.norm();
-        if (i != j && temp_norm < 0.14) {
-            intersection_distance = temp_norm - (mass.rad + d_mass[j]->rad);
-            if (intersection_distance < 0.0) {
-                // if mass bodies intersect
-                mass.extern_force += abs(intersection_distance) * mass.stiffness * (temp / temp_norm);
-            }
-
-            // magnetic force
-            mass.extern_force -=
-                    d_mass[j]->mag_scale_factor * mass.max_mag_force / max(temp_norm * temp_norm, 1e-12) *
-                    (temp / temp_norm);
+    int offsets[3] = {-1, 0, 1};
+    int cur_og_idx;
+    int cur_cell_occupancy;
+    for (int i = 0; i < 3; ++i){
+        for (int j=0; j < 3; ++j){
+            cur_cell_occupancy = getOgCounterIdx(m_x+offsets[i], m_y+offsets[j], og_size);
         }
     }
 }
