@@ -896,6 +896,7 @@ void Simulation::recomputeOG(){
     computeOgIdx<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), d_og_counter,
                                                            d_occupancy_grid, occupancy_grid_dim, occupancy_grid_offset, occupancy_grid_max_masses_per_cell, og_cell_size);
     gpuErrchk( cudaPeekAtLastError() );
+    printf("Sucessfully recomputed OG!\n");
 
 }
 void Simulation::initializeOG() {
@@ -905,7 +906,7 @@ void Simulation::initializeOG() {
     gpuErrchk(cudaMalloc((void **) &d_occupancy_grid,
                          sizeof(CUDA_MASS *) * og_grid_size));
     // allocate og counter
-    gpuErrchk(cudaMalloc((int **) &d_og_counter, sizeof(int *) * og_counter_size));
+    gpuErrchk(cudaMalloc(&d_og_counter, sizeof(int) * og_counter_size));
 
     // make sure all values in the counter are set to 0
     resetOGCounter<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_og_counter, og_counter_size);
@@ -917,6 +918,7 @@ void Simulation::initializeOG() {
     computeOgIdx<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), d_og_counter,
             d_occupancy_grid, occupancy_grid_dim, occupancy_grid_offset, occupancy_grid_max_masses_per_cell, og_cell_size);
     gpuErrchk( cudaPeekAtLastError() );
+    printf("Finished Initialization without any trouble\n");
 }
 void Simulation::freeOccupancyGrid() {
     // free occupancy grid counter
@@ -1623,8 +1625,8 @@ void Simulation::start() {
     d_spring = thrust::raw_pointer_cast(d_springs.data());
 
     // initialize occupancy grid
-    //printf("Calling initializeOg() @ line 1534\n");
-    //initializeOG();
+    printf("Calling initializeOg() @ line 1534\n");
+    initializeOG();
 
     gpu_thread = std::thread(&Simulation::_run, this);
 }
@@ -1811,8 +1813,8 @@ void Simulation::execute() {
         cudaDeviceSynchronize(); // synchronize before updating the springs and mass positions
 
         // recompute occupancy grid
-        //recomputeOG();
-        //cudaDeviceSynchronize(); // synchronize before updating the springs and mass positions
+        recomputeOG();
+        cudaDeviceSynchronize(); // synchronize before updating the springs and mass positions
 
 #ifdef RK2
         computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), dt, T); // compute mass forces after syncing
