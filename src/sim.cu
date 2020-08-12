@@ -821,12 +821,40 @@ void Simulation::setBreakpoint(double time) {
 
 //ToDo: Occupancy Grid Implementation
 // ToDo:Implement writeOgArray() device function
-    __device__ void writeOgArray(CUDA_MASS ** d_mass, int num_masses, CUDA_MASS ** og){
-        int i = blockDim.x * blockIdx.x + threadIdx.x;
-        if (i < num_masses){
-            og[d_mass[i]->og_idx] = d_mass[i];
-        }
+__device__ int get2DCellValue(double raw_coordinate, double cell_size, int og_offset, int og_size){
+    int cell_value;
+    cell_value = int( floorf( raw_coordinate/cell_size ) ) + og_offset;
+    // limit x & y coordinates to occupancy grid
+    if (cell_value > (og_size-1)){
+        cell_value = og_size - 1;
+    } else if (cell_value < 0){
+        cell_value = 0;
     }
+    return cell_value;
+}
+__device__ int getOgCounterIdx(int x_val, int y_val, int og_size){
+    return og_size*x_val + y_val;
+}
+__device__ int getOgIdx(int x_val, int y_val, int cell_idx, int og_size){
+    return x_val + og_size*(y_val + og_size * (cell_idx)); // compute 3D idx for occupancy grid
+}
+__device__ void writeOgArray(CUDA_MASS * m, CUDA_MASS ** og){
+    og[m->og_idx] = m;
+}
+// updates cell counter in hope of achieving proper result due to atomic operations only being valid in __device__ functions
+__device__ void setIndexAndIncrementCounter(int i, CUDA_MASS * m, int x_val, int y_val, int idx_2D, int * og_counter,  int og_size, int cell_capacity) {
+    //printf("mass %i has idx_3D %i\n", i, m->og_idx);
+    int cell_idx = atomicAdd(&og_counter[idx_2D], 1); // increment nr_masses in cell (returns prev value)
+    m->og_idx = getOgIdx(x_val, y_val, cell_idx, og_size);
+    int og_max_idx_size = (og_size)*(og_size)*(cell_capacity)-1;
+    if ( !(m->og_idx < og_max_idx_size) ){
+        printf("ERROR: OG_IDX of mass %i is %i but og_max_idx_size is %i\n", i, m->og_idx, og_max_idx_size);
+        printf("mass %i is in occupancy grid cell x: %i, y: %i, with count: %i\n", i, x_val, y_val, cell_idx);
+        return;
+    }
+    //printf("mass %i is in occupancy grid cell x: %i, y: %i, with count: %i\n", i, x_val, y_val, cell_idx);
+
+}
 // Implement compugeOgIdx() kernel
 // CUDA_MASS ** d_mass, int num_masses, double dt, double T, Vec global_acc, CUDA_GLOBAL_CONSTRAINTS c
 __global__ void computeOgIdx(CUDA_MASS ** d_mass, int num_masses, int * og_counter, CUDA_MASS ** og, int og_size, int og_offset, int cell_capacity, double cell_size){
@@ -836,22 +864,39 @@ __global__ void computeOgIdx(CUDA_MASS ** d_mass, int num_masses, int * og_count
         int idx_2D;
         int x_val, y_val;
         // compute cell location
-        x_val = int( floorf( m->pos[0]/cell_size ) ) + og_offset;
-        y_val = int( floorf( m->pos[1]/cell_size ) ) + og_offset;
-        // limit x & y coordinates to occupancy grid
-        x_val = (x_val > (og_size-1) ? og_size-1 : x_val);
-        y_val = (y_val > (og_size-1) ? og_size-1 : y_val);
-        x_val = (x_val < 0 ? 0 : x_val);
-        y_val = (y_val < 0 ? 0 : y_val);
-        idx_2D = og_size*x_val + y_val; // compute 2D index of counter in og_counter
-        printf("mass %i has idx_2D %i\n", i, idx_2D);
-        m->og_idx = x_val + og_size*(y_val + cell_capacity * (og_counter[idx_2D])); // compute 3D idx for occupancy grid
-        printf("mass %i has idx_3D %i\n", i, m->og_idx);
-        atomicAdd(&og_counter[idx_2D], 1); // increment nr_masses in cell
-        printf("mass %i is in occupancy grid cell x: %i, y: %i, with count: %i\n", i, x_val, y_val, og_counter[idx_2D]);
+        x_val = get2DCellValue(m->pos[0], cell_size, og_offset, og_size);
+        y_val = get2DCellValue(m->pos[1], cell_size, og_offset, og_size);
+        idx_2D = getOgCounterIdx(x_val, y_val, og_size); // compute 2D index of counter in og_counter
+        //printf("mass %i has idx_2D %i\n", i, idx_2D);
+        int current_cell_occupancy = og_counter[idx_2D];
+        if (cell_capacity > current_cell_occupancy){
+            setIndexAndIncrementCounter(i, m, x_val, y_val, idx_2D, og_counter, og_size, cell_capacity);
+        } else {
+            printf("OG Cell Overflow mass %i in cell %i with occupancy %i and cell capacity %i\n", i, idx_2D, current_cell_occupancy, cell_capacity);
+            return;
+        }
         // write CUDA_MASS * references to OG
-        writeOgArray(d_mass, num_masses, og);
+        writeOgArray(m, og);
     }
+}
+__global__ void resetOGCounter(int * og_counter, int og_counter_size){
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < og_counter_size) {
+        og_counter[i] = 0;
+    }
+}
+void Simulation::recomputeOG(){
+    //int og_grid_size = occupancy_grid_dim * occupancy_grid_dim * occupancy_grid_max_masses_per_cell;
+    int og_counter_size = occupancy_grid_dim * occupancy_grid_dim;
+    // reset all counter values to 0
+    resetOGCounter<<<og_counter_size, THREADS_PER_BLOCK>>>(d_og_counter, og_counter_size);
+    gpuErrchk( cudaPeekAtLastError() );
+    cudaDeviceSynchronize(); // Make sure all counter values are reset before the grid is recomputed
+    // recompute all cell references
+    computeOgIdx<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), d_og_counter,
+                                                           d_occupancy_grid, occupancy_grid_dim, occupancy_grid_offset, occupancy_grid_max_masses_per_cell, og_cell_size);
+    gpuErrchk( cudaPeekAtLastError() );
+
 }
 void Simulation::initializeOG() {
     int og_grid_size = occupancy_grid_dim * occupancy_grid_dim * occupancy_grid_max_masses_per_cell;
@@ -859,16 +904,19 @@ void Simulation::initializeOG() {
     // allocate OG array of CUDA_MASS pointers on device
     gpuErrchk(cudaMalloc((void **) &d_occupancy_grid,
                          sizeof(CUDA_MASS *) * og_grid_size));
-    printf("initialized d_occupancy_grid\n");
     // allocate og counter
     gpuErrchk(cudaMalloc((int **) &d_og_counter, sizeof(int *) * og_counter_size));
-    printf("initialized d_og_counter\n");
-    printf("Check if I can call masses.size(): %i\n", masses.size());
+
+    // make sure all values in the counter are set to 0
+    resetOGCounter<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_og_counter, og_counter_size);
+    gpuErrchk( cudaPeekAtLastError() );
+
+    cudaDeviceSynchronize(); // Make sure all counter values are reset before the grid is recomputed
+    gpuErrchk( cudaPeekAtLastError() );
+
     computeOgIdx<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), d_og_counter,
             d_occupancy_grid, occupancy_grid_dim, occupancy_grid_offset, occupancy_grid_max_masses_per_cell, og_cell_size);
     gpuErrchk( cudaPeekAtLastError() );
-    //massForcesAndUpdate<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints);
-
 }
 void Simulation::freeOccupancyGrid() {
     // free occupancy grid counter
@@ -1222,21 +1270,8 @@ __global__ void computeExternalMagnetForces(CUDA_MASS ** d_mass, int num_masses,
     }
 }
 */
-
-#ifdef RK2
-    template <bool step>
-#endif
-    __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double dt, double T, Vec global_acc, CUDA_GLOBAL_CONSTRAINTS c) {
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-
-    if (i < num_masses) {
+    __device__ void computeExternalMagnetForces(int i, CUDA_MASS ** d_mass, int num_masses){
         CUDA_MASS &mass = *d_mass[i];
-
-#ifdef CONSTRAINTS
-        if (mass.constraints.fixed == 1)
-            return;
-#endif
-        //compute External Magnet Forces
         Vec temp; // temporary distance vector
         double temp_norm;
         double intersection_distance;
@@ -1256,6 +1291,51 @@ __global__ void computeExternalMagnetForces(CUDA_MASS ** d_mass, int num_masses,
                         (temp / temp_norm);
             }
         }
+    }
+
+__device__ void computeExternalMagnetForcesOG(int i, CUDA_MASS ** d_mass, int num_masses, CUDA_MASS ** og, int * og_counter, int og_size, int og_offset, int cell_capacity, double cell_size){
+    CUDA_MASS &mass = *d_mass[i];
+    int m_x = get2DCellValue(mass.pos[0], cell_size, og_offset, og_size);
+    int m_y = get2DCellValue(mass.pos[1], cell_size, og_offset, og_size);
+
+    Vec temp; // temporary distance vector
+    double temp_norm;
+    double intersection_distance;
+
+    for (int j = 0; j < num_masses; j++) {
+        temp = mass.pos - d_mass[j]->pos;
+        temp_norm = temp.norm();
+        if (i != j && temp_norm < 0.14) {
+            intersection_distance = temp_norm - (mass.rad + d_mass[j]->rad);
+            if (intersection_distance < 0.0) {
+                // if mass bodies intersect
+                mass.extern_force += abs(intersection_distance) * mass.stiffness * (temp / temp_norm);
+            }
+
+            // magnetic force
+            mass.extern_force -=
+                    d_mass[j]->mag_scale_factor * mass.max_mag_force / max(temp_norm * temp_norm, 1e-12) *
+                    (temp / temp_norm);
+        }
+    }
+}
+#ifdef RK2
+    template <bool step>
+#endif
+__global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double dt, double T, Vec global_acc, CUDA_GLOBAL_CONSTRAINTS c,
+                                    CUDA_MASS ** og, int * og_counter, int og_size, int og_offset, int cell_capcity, double cell_size) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if (i < num_masses) {
+        CUDA_MASS &mass = *d_mass[i];
+
+#ifdef CONSTRAINTS
+        if (mass.constraints.fixed == 1)
+            return;
+#endif
+        //compute External Magnet Forces
+        computeExternalMagnetForces(i, d_mass, num_masses);
+
         mass.force += mass.m * global_acc;
         mass.force += mass.extern_force;
 
@@ -1545,8 +1625,8 @@ void Simulation::start() {
     d_spring = thrust::raw_pointer_cast(d_springs.data());
 
     // initialize occupancy grid
-    printf("Calling initializeOg() @ line 1534\n");
-    initializeOG();
+    //printf("Calling initializeOg() @ line 1534\n");
+    //initializeOG();
 
     gpu_thread = std::thread(&Simulation::_run, this);
 }
@@ -1731,7 +1811,11 @@ void Simulation::execute() {
 
         gpuErrchk( cudaPeekAtLastError() );
         cudaDeviceSynchronize(); // synchronize before updating the springs and mass positions
-                
+
+        // recompute occupancy grid
+        //recomputeOG();
+        //cudaDeviceSynchronize(); // synchronize before updating the springs and mass positions
+
 #ifdef RK2
         computeSpringForces<<<springBlocksPerGrid, THREADS_PER_BLOCK>>>(d_spring, springs.size(), dt, T); // compute mass forces after syncing
         gpuErrchk( cudaPeekAtLastError() );
@@ -1762,7 +1846,8 @@ void Simulation::execute() {
         computeExternalMagnetForces<<<masses.size()*masses.size(), THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, d_constraints);
         gpuErrchk( cudaPeekAtLastError() );
         */
-        massForcesAndUpdate<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints);
+        massForcesAndUpdate<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), dt, T, _global_acc, d_constraints,
+                d_occupancy_grid, d_og_counter, occupancy_grid_dim, occupancy_grid_offset, occupancy_grid_max_masses_per_cell, og_cell_size);
         gpuErrchk( cudaPeekAtLastError() );
         T += dt;
 #endif
