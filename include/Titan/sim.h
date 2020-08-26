@@ -32,7 +32,6 @@ namespace titan {
 //#define MAX_BLOCKS 32768
 //#define THREADS_PER_BLOCK 1024
 #define THREADS_PER_BLOCK 512
-
 #ifndef GRAPHICS
 #endif
 
@@ -177,10 +176,10 @@ private:
     void initializeOG();
     void recomputeOG();
     void freeOccupancyGrid();
-    const int occupancy_grid_dim = 64;
-    const int occupancy_grid_offset = 32;
-    const int occupancy_grid_max_masses_per_cell = 100;
-    const double og_cell_size = 0.15;
+    const int occupancy_grid_dim = 256;
+    const int occupancy_grid_offset = 128;
+    const int occupancy_grid_max_masses_per_cell = 128;
+    const double og_cell_size = 0.04;
     CUDA_MASS ** d_occupancy_grid;
     int * d_og_counter;
     //thrust::device_vector<CUDA_MASS *> d_og_counter;

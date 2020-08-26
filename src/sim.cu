@@ -844,7 +844,12 @@ __device__ void writeOgArray(CUDA_MASS * m, CUDA_MASS ** og){
 // updates cell counter in hope of achieving proper result due to atomic operations only being valid in __device__ functions
 __device__ void setIndexAndIncrementCounter(int i, CUDA_MASS * m, int x_val, int y_val, int idx_2D, int * og_counter,  int og_size, int cell_capacity) {
     //printf("mass %i has idx_3D %i\n", i, m->og_idx);
+    //printf("thread:\t%i\tbefore atomicAdd\tog_counter[idx_2D]:\t%i\n", i, og_counter[idx_2D]);
     int cell_idx = atomicAdd(&og_counter[idx_2D], 1); // increment nr_masses in cell (returns prev value)
+    //printf("thread:\t%i\tafter atomicAdd\tog_counter[idx_2D]:\t%i\tcell_idx:\t%i\n", i, og_counter[idx_2D], cell_idx);
+    if (cell_idx >= cell_capacity){
+        printf("ERROR: cell idx bigger (%i) than cell capaicity (%i)\n", cell_idx, cell_capacity);
+    }
     m->og_idx = getOgIdx(x_val, y_val, cell_idx, og_size);
     int og_max_idx_size = (og_size)*(og_size)*(cell_capacity)-1;
     if ( !(m->og_idx < og_max_idx_size) ){
@@ -869,7 +874,7 @@ __global__ void computeOgIdx(CUDA_MASS ** d_mass, int num_masses, int * og_count
         idx_2D = getOgCounterIdx(x_val, y_val, og_size); // compute 2D index of counter in og_counter
         //printf("mass %i has idx_2D %i\n", i, idx_2D);
         int current_cell_occupancy = og_counter[idx_2D];
-        if (cell_capacity > current_cell_occupancy){
+        if (current_cell_occupancy < cell_capacity){
             setIndexAndIncrementCounter(i, m, x_val, y_val, idx_2D, og_counter, og_size, cell_capacity);
         } else {
             printf("OG Cell Overflow mass %i in cell %i with occupancy %i and cell capacity %i\n", i, idx_2D, current_cell_occupancy, cell_capacity);
@@ -889,17 +894,17 @@ void Simulation::recomputeOG(){
     //int og_grid_size = occupancy_grid_dim * occupancy_grid_dim * occupancy_grid_max_masses_per_cell;
     int og_counter_size = occupancy_grid_dim * occupancy_grid_dim;
     // reset all counter values to 0
-    resetOGCounter<<<og_counter_size, THREADS_PER_BLOCK>>>(d_og_counter, og_counter_size);
+    resetOGCounter<<<og_counter_size/THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(d_og_counter, og_counter_size);
     gpuErrchk( cudaPeekAtLastError() );
-    cudaDeviceSynchronize(); // Make sure all counter values are reset before the grid is recomputed
+    gpuErrchk(cudaDeviceSynchronize()); // Make sure all counter values are reset before the grid is recomputed
     // recompute all cell references
     computeOgIdx<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), d_og_counter,
                                                            d_occupancy_grid, occupancy_grid_dim, occupancy_grid_offset, occupancy_grid_max_masses_per_cell, og_cell_size);
     gpuErrchk( cudaPeekAtLastError() );
-    printf("Sucessfully recomputed OG!\n");
+    gpuErrchk(cudaDeviceSynchronize()); // Make sure all counter values are reset before the grid is recomputed
 
 }
-void Simulation::initializeOG() {
+    void Simulation::initializeOG() {
     int og_grid_size = occupancy_grid_dim * occupancy_grid_dim * occupancy_grid_max_masses_per_cell;
     int og_counter_size = occupancy_grid_dim * occupancy_grid_dim;
     // allocate OG array of CUDA_MASS pointers on device
@@ -909,16 +914,15 @@ void Simulation::initializeOG() {
     gpuErrchk(cudaMalloc(&d_og_counter, sizeof(int) * og_counter_size));
 
     // make sure all values in the counter are set to 0
-    resetOGCounter<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_og_counter, og_counter_size);
+    resetOGCounter<<<og_counter_size/THREADS_PER_BLOCK, THREADS_PER_BLOCK>>>(d_og_counter, og_counter_size);
     gpuErrchk( cudaPeekAtLastError() );
 
-    cudaDeviceSynchronize(); // Make sure all counter values are reset before the grid is recomputed
-    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
 
     computeOgIdx<<<massBlocksPerGrid, THREADS_PER_BLOCK>>>(d_mass, masses.size(), d_og_counter,
             d_occupancy_grid, occupancy_grid_dim, occupancy_grid_offset, occupancy_grid_max_masses_per_cell, og_cell_size);
     gpuErrchk( cudaPeekAtLastError() );
-    printf("Finished Initialization without any trouble\n");
+    printf("Occupancy Grid Initialized\n");
 }
 void Simulation::freeOccupancyGrid() {
     // free occupancy grid counter
@@ -1276,17 +1280,20 @@ __device__ void computeExternalMagnetForce(CUDA_MASS * m1, CUDA_MASS * m2){
     Vec temp = m1->pos-m2->pos; // temporary distance vector
     double temp_norm = temp.norm();
     double intersection_distance = temp_norm - (m1->rad + m2->rad);
+    Vec extern_force = Vec(0,0,0);
     if (temp_norm < 0.14) {
         if (intersection_distance < 0.0) {
             // if mass bodies intersect
-            m1->extern_force += abs(intersection_distance) * m1->stiffness * (temp / temp_norm);
+            extern_force += abs(intersection_distance) * m1->stiffness * (temp / temp_norm);
         }
 
         // magnetic force
-        m1->extern_force -=
+        extern_force -=
                 m2->mag_scale_factor * m1->max_mag_force / max(temp_norm * temp_norm, 1e-12) *
                 (temp / temp_norm);
     }
+    // need to use atomic vector add to avoid memory conflicts
+    m1->extern_force.atomicVecAdd(extern_force);
 }
 __device__ void computeExternalMagnetForces(int idx, CUDA_MASS ** d_mass, int num_masses){
     for (int j = 0; j < num_masses; j++) {
@@ -1299,22 +1306,31 @@ __device__ void computeExternalMagnetForces(int idx, CUDA_MASS ** d_mass, int nu
 __device__ void computeExternalMagnetForcesOG(int idx, CUDA_MASS ** d_mass, int num_masses, CUDA_MASS ** og, int * og_counter, int og_size, int og_offset, int cell_capacity, double cell_size){
     CUDA_MASS * m1 = d_mass[idx];
     CUDA_MASS * m2;
-    int m1_x, m1_y, m2_x, m2_y;
+    int m1_x, m1_y, m2_x, m2_y, m2_og_idx;
     m1_x = get2DCellValue(m1->pos[0], cell_size, og_offset, og_size);
     m1_y = get2DCellValue(m1->pos[1], cell_size, og_offset, og_size);
     int offsets[3] = {-1, 0, 1};
     int cur_cell_occupancy;
     for (int i = 0; i < 3; ++i){
-        for (int j=0; j < 3; ++j){
+        for (int j = 0; j < 3; ++j){
             m2_x = m1_x + offsets[i];
             m2_y = m1_y + offsets[j];
-            cur_cell_occupancy = getOgCounterIdx(m2_x, m2_y, og_size);
-            for (int k = 0; k < cur_cell_occupancy; ++k){
-                // get mass from og cell
-                m2 = og[getOgIdx(m2_x, m2_y, k, og_size)];
-                if (m1 != m2){
-                    computeExternalMagnetForce(m1, m2);
+            if (m2_x < 0 || m2_y < 0 || !(m2_x < og_size) || !(m2_y < og_size)){
+                continue;
+            } else {
+                cur_cell_occupancy = og_counter[getOgCounterIdx(m2_x, m2_y, og_size)];
+                for (int k = 0; k < cur_cell_occupancy; ++k){
+                    // get mass from og cell
+                    m2_og_idx = getOgIdx(m2_x, m2_y, k, og_size);
+                    if (m2_og_idx >= og_size*og_size*cell_capacity){
+                        printf("OG_ACCESS_OOB: %i\n", m2_og_idx);
+                    }
+                    m2 = og[m2_og_idx];
+                    if (m1 != m2){
+                        computeExternalMagnetForce(m1, m2);
+                    }
                 }
+
             }
         }
     }
@@ -1334,8 +1350,8 @@ __global__ void massForcesAndUpdate(CUDA_MASS ** d_mass, int num_masses, double 
             return;
 #endif
         //compute External Magnet Forces
-        computeExternalMagnetForces(i, d_mass, num_masses);
-        //computeExternalMagnetForcesOG(i, d_mass, num_masses, og, og_counter, og_size, og_offset, cell_capacity, cell_size);
+        //computeExternalMagnetForces(i, d_mass, num_masses);
+        computeExternalMagnetForcesOG(i, d_mass, num_masses, og, og_counter, og_size, og_offset, cell_capacity, cell_size);
         mass.force += mass.m * global_acc;
         mass.force += mass.extern_force;
 
@@ -1625,7 +1641,6 @@ void Simulation::start() {
     d_spring = thrust::raw_pointer_cast(d_springs.data());
 
     // initialize occupancy grid
-    printf("Calling initializeOg() @ line 1534\n");
     initializeOG();
 
     gpu_thread = std::thread(&Simulation::_run, this);
@@ -1986,9 +2001,9 @@ __global__ void updateVertices(float * gl_ptr, CUDA_MASS ** d_mass, int num_mass
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
     if (i < num_masses) {
-        gl_ptr[3 * i] = (float) d_mass[i] -> pos[0];
-        gl_ptr[3 * i + 1] = (float) d_mass[i] -> pos[1];
-        gl_ptr[3 * i + 2] = (float) d_mass[i] -> pos[2];
+        gl_ptr[3 * i] = (float) d_mass[i] -> pos[0]; // x
+        gl_ptr[3 * i + 1] = (float) d_mass[i] -> pos[1]; // y
+        gl_ptr[3 * i + 2] = (float) d_mass[i] -> pos[2]; // z
     }
 }
 /*
