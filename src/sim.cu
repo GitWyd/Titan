@@ -1220,62 +1220,6 @@ double Simulation::time() {
 bool Simulation::running() {
     return this -> RUNNING;
 }
-/*
- * compute external magnet forces
- * and itterates in CUDA parallelized fashion over all masses
- */
-/*
-__global__ void computeExternalMagnetForces(CUDA_MASS ** d_mass, int num_masses, double dt, double T, CUDA_GLOBAL_CONSTRAINTS c) {
-    int idx = blockDim.x * blockIdx.x + threadIdx.x;
-    int i = idx/num_masses;
-    int j = idx%num_masses;
-    if (i < num_masses) {
-        CUDA_MASS &mass = *d_mass[i];
-#ifdef CONSTRAINTS
-        if (mass.constraints.fixed == 1)
-            return;
-#endif
-        // Compute External Magnet Forces
-        Vec temp; // temporary distance vector
-        double temp_norm;
-        double intersection_distance;
-        temp = mass.pos-d_mass[j]->pos;
-        temp_norm = temp.norm();
-        if (i != j && temp_norm < 0.14){
-            intersection_distance = temp_norm - (mass.rad + d_mass[j]->rad);
-            if ( intersection_distance < 0.0 ){
-                // if mass bodies intersect
-                mass.extern_force += abs(intersection_distance)*mass.stiffness * (temp/temp_norm);
-#ifdef DEBUG
-                if (i > 4 && i < 8){
-                    printf("%d: intersection_dist = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
-                           i, intersection_distance, mass.m, mass.stiffness,
-                           mass.extern_force[0],mass.extern_force[1],mass.extern_force[2],
-                           mass.pos[0], mass.pos[1], mass.pos[2],
-                           mass.vel[0], mass.vel[1], mass.vel[2],
-                           mass.acc[0], mass.acc[1], mass.pos[2]);
-                    printf("abs(intersection_distance) = %f", abs(intersection_distance));
-                    printf("(temp/temp_norm)[1] = %f", (temp/temp_norm)[1]);
-                }
-#endif
-            }
-
-            // magnetic force
-            mass.extern_force -= d_mass[j]->mag_scale_factor*mass.max_mag_force / max(temp_norm*temp_norm,1e-12) * (temp/temp_norm);
-#ifdef DEBUG
-            if (i > 4 && i < 8){
-                printf("%d: temp_norm = %f, mass = %f | mass.stiffness = %f \n\t m.ext_force = (%f, %f, %f) \n\tm.pos = (%f, %f, %f), \n\tmass.vel = (%f, %f, %f), \n\tmass.acc = (%f, %f, %f)\n",
-                       i, temp_norm, mass.m, mass.stiffness,
-                       mass.extern_force[0],mass.extern_force[1],mass.extern_force[2],
-                       mass.pos[0], mass.pos[1], mass.pos[2],
-                       mass.vel[0], mass.vel[1], mass.vel[2],
-                       mass.acc[0], mass.acc[1], mass.pos[2]);
-            }
-#endif
-        }
-    }
-}
-*/
 __device__ void computeExternalMagnetForce(CUDA_MASS * m1, CUDA_MASS * m2){
     Vec temp = m1->pos-m2->pos; // temporary distance vector
     double temp_norm = temp.norm();
@@ -1564,7 +1508,7 @@ void Simulation::createGLFWWindow() {
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
 
     // Dark blue background
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    glClearColor(0.0f, 0.0f, 0.1f, 0.0f);
 }
 
 #endif

@@ -45,7 +45,9 @@ set(TITAN_SOURCE_FILES
     ${TITAN_SOURCE_DIR}/spring.cu
     ${TITAN_SOURCE_DIR}/object.cu
     ${TITAN_SOURCE_DIR}/graphics.cpp
-)
+    ${TITAN_SOURCE_DIR}/geometries/geometry.cpp
+    ${TITAN_SOURCE_DIR}/geometries/sphere.cpp
+    ${TITAN_SOURCE_DIR}/geometries/cylinder.cpp  )
 
 # include all header files (*.h)
 set(TITAN_HEADER_FILES 
@@ -57,7 +59,9 @@ set(TITAN_HEADER_FILES
     ${TITAN_INCLUDE_DIR}/graphics.h
     ${TITAN_INCLUDE_DIR}/shader.h
     ${TITAN_INCLUDE_DIR}/stlparser.h
-)
+    ${TITAN_INCLUDE_DIR}/geometries/geometry.h
+    ${TITAN_INCLUDE_DIR}/geometries/sphere.h
+    ${TITAN_INCLUDE_DIR}/geometries/cylinder.h)
 
 # if building as a shared library
 if (TITAN_SHARED_BUILD)
